@@ -218,3 +218,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# MAVIS database
+mavis.db
+*.db
+
+# API keys and environment variables
+.env
+.env.*
+
+# Python virtual environment
+.venv/
