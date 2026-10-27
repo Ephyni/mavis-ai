@@ -63,3 +63,110 @@ def get_memories():
 
     return memories
 
+
+def propose_memory(content, category="general"):
+    connection = sqlite3.connect(DATABASE)
+
+    cursor = connection.execute(
+        """
+        INSERT INTO memory_proposals (content, category)
+        VALUES (?, ?)
+        """,
+        (content, category)
+    )
+
+    connection.commit()
+    proposal_id = cursor.lastrowid
+    connection.close()
+
+    return proposal_id
+
+
+def get_proposals():
+    connection = sqlite3.connect(DATABASE)
+    connection.row_factory = sqlite3.Row
+
+    cursor = connection.execute(
+        """
+        SELECT * FROM memory_proposals
+        WHERE status = 'pending'
+        ORDER BY id DESC
+        """
+    )
+
+    proposals = [dict(row) for row in cursor.fetchall()]
+
+    connection.close()
+
+    return proposals
+
+
+def approve_memory(proposal_id):
+    connection = sqlite3.connect(DATABASE)
+
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+
+        cursor = connection.execute(
+            """
+            SELECT content, category
+            FROM memory_proposals
+            WHERE id = ? AND status = 'pending'
+            """,
+            (proposal_id,)
+        )
+
+        proposal = cursor.fetchone()
+
+        if proposal is None:
+            connection.rollback()
+            return None
+
+        cursor = connection.execute(
+            """
+            INSERT INTO memories (content, category)
+            VALUES (?, ?)
+            """,
+            proposal
+        )
+
+        memory_id = cursor.lastrowid
+
+        connection.execute(
+            """
+            UPDATE memory_proposals
+            SET status = 'approved'
+            WHERE id = ?
+            """,
+            (proposal_id,)
+        )
+
+        connection.commit()
+        return memory_id
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
+def reject_memory(proposal_id):
+    connection = sqlite3.connect(DATABASE)
+
+    try:
+        cursor = connection.execute(
+            """
+            UPDATE memory_proposals
+            SET status = 'rejected'
+            WHERE id = ? AND status = 'pending'
+            """,
+            (proposal_id,)
+        )
+
+        connection.commit()
+        return cursor.rowcount > 0
+
+    finally:
+        connection.close()
