@@ -148,6 +148,62 @@ def chat():
         api_key=os.environ["MODEL_API_KEY"]
     )
 
+    intent_instructions = (
+        "Classify the user's message as one of these intents: "
+        "'add_task', 'list_tasks', 'reminder', or 'chat'. "
+        "Use 'list_tasks' when the user asks to see or hear their tasks. "
+        "Do not perform any actions. "
+        "Reply with only the classification."
+    )
+
+    intent_response = client.responses.create(
+        model="muse-spark-1.3",
+        instructions=intent_instructions,
+        input=message.strip()
+    )
+
+    intent = intent_response.output_text.strip().lower()
+    print("Detected intent:", intent)
+
+    if intent not in {"add_task", "list_tasks", "reminder", "chat"}:
+       intent = "chat"
+
+    if intent == "add_task":
+        title_response = client.responses.create(
+            model="muse-spark-1.3",
+            instructions=(
+                "Extract the task title from the user's message. "
+                "Return only the task title, without extra words."
+            ),
+            input=message.strip()
+        )
+
+        title = title_response.output_text.strip()
+        task_id = save_task(title)
+
+        return jsonify({
+            "reply": f"I've added '{title}' to your task list.",
+            "task_id": task_id,
+            "intent": intent
+       })
+
+    if intent == "list_tasks":
+        saved_tasks = get_saved_tasks()
+
+        if not saved_tasks:
+            return jsonify({
+                "reply": "You don't have any saved tasks yet.",
+                "intent": intent,
+                "tasks": []
+            })
+
+        task_titles = [task["title"] for task in saved_tasks]
+
+        return jsonify({
+            "reply": "Here are your tasks: " + ", ".join(task_titles),
+            "intent": intent,
+            "tasks": saved_tasks
+        })
 
     response = client.responses.create(
     model="muse-spark-1.3",
