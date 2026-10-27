@@ -25,6 +25,14 @@ def init_db():
         )
     """)
 
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            completed INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+
     connection.commit()
     connection.close()
 
@@ -170,3 +178,30 @@ def reject_memory(proposal_id):
 
     finally:
         connection.close()
+
+def save_task(title):
+    connection = sqlite3.connect(DATABASE)
+
+    cursor = connection.execute(
+        "INSERT INTO tasks (title) VALUES (?)",
+        (title,)
+    )
+
+    connection.commit()
+    task_id = cursor.lastrowid
+    connection.close()
+
+    return task_id
+
+def get_tasks():
+    connection = sqlite3.connect(DATABASE)
+    connection.row_factory = sqlite3.Row
+
+    cursor = connection.execute(
+        "SELECT id, title, completed FROM tasks ORDER BY id DESC"
+    )
+
+    tasks = [dict(row) for row in cursor.fetchall()]
+    connection.close()
+
+    return tasks
