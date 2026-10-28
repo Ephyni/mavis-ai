@@ -230,3 +230,7 @@ mavis.db
 
 # Python virtual environment
 .venv/
+
+# Local test audio recordings
+test_audio.webm
+test_audio.wav

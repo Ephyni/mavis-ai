@@ -1,0 +1,148 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAVIS | AI Productivity Assistant</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <header>
+        <h1>MAVIS</h1>
+        <p>Your AI Productivity Assistant</p>
+    </header>
+
+    <main>
+        <section id="conversation">
+            <h2>How can I help you today?</h2>
+            <p>Speak naturally to manage your day.</p>
+
+            <button id="voice-button" type="button">
+                🎙️ Start Voice Command
+            </button>
+
+            <p id="voice-status">Voice activation coming soon</p>
+        </section>
+
+        <button id="panel-toggle" type="button" aria-controls="productivity-panel" aria-expanded="true">
+            Hide Productivity
+        </button>
+
+        <aside id="productivity-panel">
+            <h2>My Productivity</h2>
+            <p>Your tasks will appear here.</p>
+        </aside>
+    </main>
+
+    <script>
+    // Connect the toggle button to the productivity panel.
+    const panelToggle = document.getElementById("panel-toggle");
+    const productivityPanel = document.getElementById("productivity-panel");
+
+    // Keep the button label and accessibility state synchronized.
+    panelToggle.addEventListener("click", () => {
+        const isHidden = productivityPanel.hidden;
+
+        productivityPanel.hidden = !isHidden;
+        panelToggle.textContent = isHidden
+            ? "Hide Productivity"
+            : "Show Productivity";
+        panelToggle.setAttribute("aria-expanded", String(isHidden));
+    });
+</script>
+
+<script>
+    const voiceButton = document.getElementById("voice-button");
+    const voiceStatus = document.getElementById("voice-status");
+
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let audioStream = null;
+
+    // Start or stop recording based on the current microphone state.
+    voiceButton.addEventListener("click", async () => {
+        if (mediaRecorder?.state === "recording") {
+            mediaRecorder.stop();
+            return;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia ||
+            !window.MediaRecorder) {
+            voiceStatus.textContent = "Audio recording is unavailable.";
+            return;
+        }
+
+        try {
+            audioStream = await navigator.mediaDevices.getUserMedia({
+                audio: true
+            });
+
+            audioChunks = [];
+            mediaRecorder = new MediaRecorder(audioStream);
+
+            // Collect recorded audio for the future transcription request.
+            mediaRecorder.addEventListener("dataavailable", (event) => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            });
+
+            // Finalize the recording and release microphone resources.
+            mediaRecorder.addEventListener("stop", async () => {
+                const audioBlob = new Blob(audioChunks, {
+                    type: mediaRecorder.mimeType
+                });
+
+                voiceStatus.textContent =
+                    `Recording captured (${Math.round(audioBlob.size / 1024)} KB).`;
+
+// Package the recorded audio for the Flask voice endpoint.
+const formData = new FormData();
+formData.append("audio", audioBlob, "recording.webm");
+
+try {
+    voiceStatus.textContent = "Uploading recording...";
+
+    // Send the audio to the backend for processing.
+    const response = await fetch("/api/voice", {
+        method: "POST",
+        body: formData
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+        throw new Error(result.error || "Audio upload failed.");
+    }
+
+    voiceStatus.textContent = "Recording received by MAVIS.";
+} catch (error) {
+    console.error("Voice upload failed:", error);
+    voiceStatus.textContent = "Unable to upload recording.";
+}
+
+                audioStream.getTracks().forEach(track => track.stop());
+                audioStream = null;
+                voiceButton.textContent = "🎙️ Start Voice Command";
+            });
+
+            mediaRecorder.start();
+            voiceButton.textContent = "⏹ Stop Recording";
+            voiceStatus.textContent = "Listening... speak your command.";
+
+        } catch (error) {
+            if (audioStream) {
+                audioStream.getTracks().forEach(track => track.stop());
+                audioStream = null;
+            }
+
+            voiceStatus.textContent = "Unable to start recording.";
+        }
+    });
+</script>
+
+</body>
+</html>

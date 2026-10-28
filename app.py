@@ -1,5 +1,5 @@
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -32,10 +32,8 @@ tasks = []
 
 @app.get("/")
 def home():
-    return jsonify({
-        "assistant": "MAVIS",
-        "message": "MAVIS backend is running!"
-    })
+    """Render the MAVIS conversational interface."""
+    return render_template("index.html")
 
 @app.get("/api/tasks")
 def get_tasks():
@@ -290,6 +288,23 @@ def chat():
 )
 
     return jsonify({"reply": response.output_text})
+
+@app.post("/api/voice")
+def receive_voice():
+    """Validate an uploaded voice recording before transcription."""
+    audio = request.files.get("audio")
+
+    if audio is None or not audio.filename:
+        return jsonify({
+            "error": "An audio recording is required."
+        }), 400
+
+    # Confirm receipt without claiming transcription succeeded.
+    return jsonify({
+        "status": "received",
+        "filename": audio.filename,
+        "message": "Audio received. Transcription is not connected yet."
+    }), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

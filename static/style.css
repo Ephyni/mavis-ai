@@ -1,0 +1,79 @@
+/* Establish the visual foundation for the MAVIS interface. */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    background-color: #0b1020;
+    color: #f8fafc;
+}
+
+/* Keep MAVIS branding consistent across the application. */
+header {
+    padding: 24px 40px;
+    border-bottom: 1px solid #273449;
+}
+
+header h1 {
+    margin: 0;
+    color: #a5b4fc;
+}
+
+header p {
+    color: #94a3b8;
+}
+
+/* Position the conversation and productivity areas side by side. */
+main {
+    display: flex;
+    gap: 24px;
+    padding: 32px;
+    min-height: 70vh;
+}
+
+/* Give voice interaction the primary position. */
+#conversation {
+    flex: 1;
+    padding: 32px;
+    background-color: #151e32;
+    border-radius: 18px;
+}
+
+/* Reserve space for tasks and verification activity. */
+#productivity-panel {
+    width: 300px;
+    padding: 24px;
+    background-color: #151e32;
+    border-radius: 18px;
+}
+
+/* Highlight MAVIS's primary voice action. */
+#voice-button {
+    padding: 14px 24px;
+    background-color: #6366f1;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+#voice-button:hover {
+    background-color: #4f46e5;
+}
+
+/* Stack panels on smaller screens. */
+@media (max-width: 768px) {
+    main {
+        flex-direction: column;
+        padding: 16px;
+    }
+
+    #productivity-panel {
+        width: auto;
+    }
+}
+
+/* Ensure the panel is removed from the layout when collapsed. */
+#productivity-panel[hidden] {
+    display: none;
+}
