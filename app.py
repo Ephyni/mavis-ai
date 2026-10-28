@@ -3,8 +3,16 @@ from flask import Flask, jsonify, request
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
-from memory import get_tasks as get_saved_tasks
-from memory import save_task
+
+# Import MAVIS's SQLite task-management functions.
+# The verified completion workflow separates task execution (Builder)
+# from independent database verification (Verifier).
+from memory import (
+    get_tasks as get_saved_tasks,
+    save_task,
+    execute_verified_task_completion,
+)
+
 
 from memory import (
     init_db,
@@ -150,7 +158,7 @@ def chat():
 
     intent_instructions = (
         "Classify the user's message as one of these intents: "
-        "'add_task', 'list_tasks', 'reminder', or 'chat'. "
+        "'add_task', 'list_tasks', 'complete_task', 'reminder', or 'chat'. "
         "Use 'list_tasks' when the user asks to see or hear their tasks. "
         "Do not perform any actions. "
         "Reply with only the classification."
@@ -165,8 +173,14 @@ def chat():
     intent = intent_response.output_text.strip().lower()
     print("Detected intent:", intent)
 
-    if intent not in {"add_task", "list_tasks", "reminder", "chat"}:
-       intent = "chat"
+    if intent not in {
+    "add_task",
+    "list_tasks",
+    "complete_task",
+    "reminder",
+    "chat"
+}:
+     intent = "chat"
 
     if intent == "add_task":
         title_response = client.responses.create(
@@ -203,6 +217,64 @@ def chat():
             "reply": "Here are your tasks: " + ", ".join(task_titles),
             "intent": intent,
             "tasks": saved_tasks
+        })
+
+    if intent == "complete_task":
+        # Retrieve persisted tasks before selecting a completion target.
+        saved_tasks = get_saved_tasks()
+        # Accept an explicitly selected task ID from the request.
+        task_id = data.get("task_id")
+
+        if task_id is not None:
+            if type(task_id) is not int or task_id <= 0:
+                return jsonify({
+                    "error": "A positive integer task ID is required."
+                }), 400
+
+            # Only permit completion of an existing, incomplete task.
+            selected_task = next(
+                (
+                    task for task in saved_tasks
+                    if task["id"] == task_id
+                    and task["completed"] == 0
+                ),
+                None
+            )
+
+            if selected_task is None:
+                return jsonify({
+                    "error": "Task not found or already completed."
+                }), 404
+
+            result = execute_verified_task_completion(task_id)
+
+            return jsonify({
+                "reply": (
+                    f"Completed '{selected_task['title']}' and verified it."
+                    if result["status"] == "verified"
+                    else "Task completion could not be verified."
+                ),
+                "intent": intent,
+                "task_id": task_id,
+                "verification": result
+            })
+
+        incomplete_tasks = [
+            task for task in saved_tasks
+            if task["completed"] == 0
+        ]
+
+        if not incomplete_tasks:
+            return jsonify({
+                "reply": "You don't have any incomplete tasks.",
+                "intent": intent
+            })
+
+        # Require an explicit task selection before changing SQLite.
+        return jsonify({
+            "reply": "Which task would you like me to complete?",
+            "intent": intent,
+            "tasks": incomplete_tasks
         })
 
     response = client.responses.create(
