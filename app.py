@@ -1,8 +1,12 @@
 
+import json
 from flask import Flask, jsonify, request, render_template
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
+import subprocess
+import tempfile
+import requests
 
 # Import MAVIS's SQLite task-management functions.
 # The verified completion workflow separates task execution (Builder)
@@ -289,6 +293,61 @@ def chat():
 
     return jsonify({"reply": response.output_text})
 
+
+def convert_audio_to_wav(input_path, output_path):
+    """Convert browser audio to mono 24 kHz PCM WAV for transcription."""
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i", input_path,
+            "-ac", "1",
+            "-ar", "24000",
+            "-c:a", "pcm_s16le",
+            output_path,
+        ],
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
+
+
+def transcribe_audio(wav_path):
+    """Transcribe WAV audio using Meta's Muse Voice Transcribe API."""
+    load_dotenv()
+
+    api_key = os.environ["MODEL_API_KEY"]
+
+    with open(wav_path, "rb") as audio_file:
+        response = requests.post(
+            "https://api.meta.ai/v1/asr/transcribe",
+            headers={
+                "Authorization": f"Bearer {api_key}"
+            },
+            
+            data={
+                "request": json.dumps({
+                    "model": "muse-voice-transcribe-1.0",
+                    "mode": "PUSH_TO_TALK",
+                    "audioEncoding": "WAV",
+                })
+            },
+
+            files={
+                "audio": ("recording.wav", audio_file, "audio/wav")
+            },
+            timeout=60,
+        )
+
+    if not response.ok:
+        print("Meta transcription error:", response.status_code)
+        print("Response details:", response.text[:1000])
+
+    response.raise_for_status()
+    return response.json()
+
+
+
 @app.post("/api/voice")
 def receive_voice():
     """Validate an uploaded voice recording before transcription."""
@@ -299,12 +358,40 @@ def receive_voice():
             "error": "An audio recording is required."
         }), 400
 
-    # Confirm receipt without claiming transcription succeeded.
-    return jsonify({
-        "status": "received",
-        "filename": audio.filename,
-        "message": "Audio received. Transcription is not connected yet."
-    }), 200
+    
+    try:
+        # Isolate uploaded and converted audio in temporary files.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = os.path.join(temp_dir, "recording.webm")
+            output_path = os.path.join(temp_dir, "recording.wav")
+
+            audio.save(input_path)
+            convert_audio_to_wav(input_path, output_path)
+
+            # Return only the transcript after Meta confirms success.
+            result = transcribe_audio(output_path)
+            transcript = result.get("transcript", "").strip()
+
+            if not transcript:
+                return jsonify({
+                    "error": "No speech was recognized."
+                }), 422
+
+            return jsonify({
+                "status": "transcribed",
+                "transcript": transcript
+            }), 200
+
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return jsonify({
+            "error": "Audio conversion failed."
+        }), 422
+
+    except requests.RequestException:
+        return jsonify({
+            "error": "Voice transcription service unavailable."
+        }), 502
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
