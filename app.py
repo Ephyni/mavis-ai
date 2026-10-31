@@ -32,6 +32,27 @@ init_db()
 
 app = Flask(__name__)
 
+import task_service
+task_service.migrate()
+
+@app.patch("/api/tasks/<int:task_id>")
+def update_task(task_id):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "A JSON object is required."}), 400
+    try:
+        if not task_service.update(task_id, data):
+            return jsonify({"error": "Task not found."}), 404
+        return jsonify({"status": "updated"})
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+@app.delete("/api/tasks/<int:task_id>")
+def delete_task(task_id):
+    if not task_service.delete(task_id):
+        return jsonify({"error": "Task not found."}), 404
+    return jsonify({"status": "deleted"})
+
 tasks = []
 
 @app.get("/")
@@ -41,24 +62,24 @@ def home():
 
 @app.get("/api/tasks")
 def get_tasks():
-    tasks = get_saved_tasks()
-    return jsonify({"tasks": tasks})
+    try:
+        from datetime import date
+        today = date.fromisoformat(request.args["today"]) if "today" in request.args else None
+        tasks = task_service.list_tasks(today)
+        return jsonify({"tasks": tasks, "recommendation": task_service.recommendation(tasks)})
+    except ValueError:
+        return jsonify({"error": "Invalid date."}), 400
 
 @app.post("/api/tasks")
 def create_task():
     data = request.get_json(silent=True) or {}
-    title = data.get("title")
-
-    if not isinstance(title, str) or not title.strip():
-        return jsonify({"error": "Task title is required"}), 400
-
-    task_id = save_task(title.strip())
-
-    return jsonify({
-    "id": task_id,
-    "title": title.strip(),
-    "completed": 0
-}), 201
+    if not isinstance(data, dict):
+        return jsonify({"error": "A JSON object is required."}), 400
+    try:
+        task_id = task_service.create(data)
+        return jsonify({"id": task_id}), 201
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
 
 
 @app.post("/api/memories")

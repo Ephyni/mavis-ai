@@ -234,3 +234,7 @@ mavis.db
 # Local test audio recordings
 test_audio.webm
 test_audio.wav
+# Local dependency installation and task data
+.packages/
+mavis.db
+mavis.db-*
