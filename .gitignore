@@ -239,6 +239,8 @@ test_audio.wav
 mavis.db
 mavis.db-*
 
-# Local TTS models and generated audio
+# Local speech models and generated recordings
 models/kokoro/
 mavis_*.wav
+test_voice.webm
+static/tasks.backup.js
