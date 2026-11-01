@@ -238,3 +238,7 @@ test_audio.wav
 .packages/
 mavis.db
 mavis.db-*
+
+# Local TTS models and generated audio
+models/kokoro/
+mavis_*.wav

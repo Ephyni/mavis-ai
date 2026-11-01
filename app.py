@@ -1,4 +1,5 @@
 
+import re
 import json
 from flask import Flask, jsonify, request, render_template
 import os
@@ -194,8 +195,7 @@ def chat():
     )
 
     intent = intent_response.output_text.strip().lower()
-    print("Detected intent:", intent)
-
+    
     if intent not in {
     "add_task",
     "list_tasks",
@@ -245,8 +245,29 @@ def chat():
     if intent == "complete_task":
         # Retrieve persisted tasks before selecting a completion target.
         saved_tasks = get_saved_tasks()
-        # Accept an explicitly selected task ID from the request.
+               # Resolve an explicitly named task without bypassing ID validation.
         task_id = data.get("task_id")
+
+        # Resolve a spoken task ID before task-name matching.
+        if task_id is None:
+            match = re.search(
+                r"\btask\s*(?:number\s*|#\s*)?(\d+)\b",
+                message,
+                re.IGNORECASE,
+            )
+            if match:
+                task_id = int(match.group(1))
+
+        if task_id is None:
+            matches = [
+                task for task in saved_tasks
+                if task["completed"] == 0
+                and task["title"].strip().casefold()
+                in message.strip().casefold()
+            ]
+
+            if len(matches) == 1:
+                task_id = matches[0]["id"]
 
         if task_id is not None:
             if type(task_id) is not int or task_id <= 0:
@@ -362,8 +383,7 @@ def transcribe_audio(wav_path):
 
     if not response.ok:
         print("Meta transcription error:", response.status_code)
-        print("Response details:", response.text[:1000])
-
+        
     response.raise_for_status()
     return response.json()
 
@@ -393,15 +413,19 @@ def receive_voice():
             result = transcribe_audio(output_path)
             transcript = result.get("transcript", "").strip()
 
+            print("MAVIS transcript:", repr(transcript))
+            
             if not transcript:
                 return jsonify({
                     "error": "No speech was recognized."
                 }), 422
 
-            return jsonify({
-                "status": "transcribed",
-                "transcript": transcript
-            }), 200
+            with app.test_request_context(
+            "/api/chat",
+            method="POST",
+            json={"message": transcript}
+        ):      
+                return chat()
 
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return jsonify({
@@ -413,6 +437,35 @@ def receive_voice():
             "error": "Voice transcription service unavailable."
         }), 502
 
+
+
+@app.post("/api/tts")
+def text_to_speech():
+    """Generate a WAV response using MAVIS's selected voice."""
+    from io import BytesIO
+
+    import soundfile as sf
+    from flask import jsonify, request, send_file
+
+    from tts_service import generate_speech
+
+    data = request.get_json(silent=True) or {}
+    text = data.get("text")
+
+    if not isinstance(text, str) or not 0 < len(text.strip()) <= 300:
+        return jsonify({"error": "Text must contain 1–300 characters."}), 400
+
+    samples, sample_rate = generate_speech(text)
+
+    audio_buffer = BytesIO()
+    sf.write(audio_buffer, samples, sample_rate, format="WAV")
+    audio_buffer.seek(0)
+
+    return send_file(
+        audio_buffer,
+        mimetype="audio/wav",
+        download_name="mavis_response.wav",
+    )
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
