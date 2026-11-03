@@ -11,13 +11,31 @@
   </head>
 
   <body>
+    
+    <!-- MAVIS navigation sidebar -->
+    <aside class="mavis-sidebar">
+      <div class="mavis-brand">✦ MAVIS</div>
+
+      <nav class="mavis-nav" aria-label="Main navigation">
+        <a href="#home">Home</a>
+        <a href="#tasks-panel">Tasks</a>
+        <span>Memory</span>
+        <span>Projects</span>
+        <span>Settings</span>
+      </nav>
+
+      <div class="mavis-online">● Online</div>
+    </aside>
+
     <header>
       <strong>MAVIS</strong><span>Your day, a little clearer.</span>
     </header>
-    <main>
-      <p class="eyebrow">ONE THING AT A TIME</p>
-      <h1>Make room for<br />what matters.</h1>
-      <p>A clear view of your tasks, deadlines, and next step.</p>
+    <main id="home">
+    <p class="eyebrow">Welcome back!</p>
+    <h1>I'm <span class="mavis-highlight">MAVIS</span></h1>
+    <p class="mavis-tagline">Make room for what matters.</p>
+    <p class="mavis-subtagline">And your day, a little clearer.</p>
+
       <section class="next">
         <p class="eyebrow">YOUR NEXT STEP</p>
         <h2 id="next">Loading your tasks…</h2>
@@ -32,7 +50,67 @@
         data-state="idle"
         aria-label="Start MAVIS voice command"
     >
-        <div class="orb-core"></div>
+      <div class="orb-core"></div>
+      
+      <div class="orb-filaments" aria-hidden="true">
+        <svg viewBox="0 0 300 160" width="100%" height="100%">
+          <!-- Primary electric-blue energy current -->
+          
+          <path
+            d="M6 95 C58 18, 105 142, 157 80 S247 22, 294 89"
+            fill="none"
+            stroke="#8defff"
+            stroke-width="7"
+            stroke-linecap="round"
+          >
+            <animate
+              attributeName="d"
+              dur="3.5s"
+              repeatCount="indefinite"
+              values="
+                M6 95 C58 18, 105 142, 157 80 S247 22, 294 89;
+                M6 70 C58 110, 105 35, 157 93 S247 130, 294 65;
+                M6 95 C58 18, 105 142, 157 80 S247 22, 294 89
+              "
+            />
+          </path>
+
+
+          <!-- Secondary intertwining energy current -->
+          <path
+            d="M6 58 C62 139, 111 20, 162 84 S250 142, 294 62"
+            fill="none"
+            stroke="#168fff"
+            stroke-width="5"
+            stroke-linecap="round"
+            opacity="0.85"
+          />
+          
+            <!-- A subtle secondary filament adds depth to the energy flow. -->
+            
+            <path
+              d="M12 78 C58 35, 92 118, 145 68 S235 116, 288 55"
+              fill="none"
+              stroke="#7beaff"
+              stroke-width="2"
+              stroke-linecap="round"
+              opacity="0.7"
+            >
+              <animate
+                attributeName="d"
+                dur="5.5s"
+                repeatCount="indefinite"
+                values="
+                  M12 78 C58 35, 92 118, 145 68 S235 116, 288 55;
+                  M12 95 C58 108, 92 40, 145 90 S235 44, 288 88;
+                  M12 78 C58 35, 92 118, 145 68 S235 116, 288 55
+                "
+              />
+            </path>
+
+        </svg>
+      </div>
+
         <div class="orb-glow"></div>
     </button>
 
@@ -76,7 +154,7 @@
               required /></label
           ><button class="primary" type="submit">Add task</button>
         </form>
-        <section class="panel">
+        <section class="panel" id="tasks-panel">
           <h2>Your tasks</h2>
           <nav aria-label="Task filters">
             <button data-filter="open" aria-pressed="true">Open</button
