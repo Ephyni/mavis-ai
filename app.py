@@ -29,7 +29,14 @@ from memory import (
     get_proposals,
     approve_memory,
     reject_memory,
+    save_reminder,
+    verify_reminder_saved,
+    get_reminders,
+    get_due_reminders,
+    mark_reminder_notified,
 )
+
+from reminder_speech import format_spoken_reminder
 
 init_db()
 
@@ -113,6 +120,60 @@ def create_task():
         return jsonify({"error": str(error)}), 400
 
 
+@app.post("/api/reminders")
+def create_reminder():
+    """Create a reminder and verify its persisted database state."""
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({"error": "A JSON object is required."}), 400
+
+    message = data.get("message")
+    due_at = data.get("due_at")
+
+    try:
+        # Builder: persist the requested reminder.
+        reminder_id = save_reminder(message, due_at)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+    # Verifier: independently confirm the saved message and due time.
+    verified = verify_reminder_saved(reminder_id, message, due_at)
+
+    if not verified:
+        return jsonify({
+            "error": "Reminder creation could not be verified.",
+            "verified": False
+        }), 500
+
+    return jsonify({
+        "id": reminder_id,
+        "status": "created",
+        "verified": True
+    }), 201
+
+
+@app.get("/api/reminders/due")
+def due_reminders():
+    """Return pending reminders whose scheduled time has arrived."""
+    reminders = get_due_reminders()
+
+    return jsonify({
+        "reminders": reminders,
+        "count": len(reminders)
+    })
+
+@app.post("/api/reminders/<int:reminder_id>/acknowledge")
+def acknowledge_reminder(reminder_id):
+    """Record acknowledgment of an eligible due reminder."""
+    acknowledged = mark_reminder_notified(reminder_id)
+
+    return jsonify({
+        "reminder_id": reminder_id,
+        "acknowledged": acknowledged
+    }), 200 if acknowledged else 409
+
+
 @app.post("/api/memories")
 def create_memory():
     data = request.get_json(silent=True) or {}
@@ -134,6 +195,7 @@ def list_memories():
     return jsonify({
         "memories": get_memories()
     })
+
 
 @app.post("/api/memory-proposals")
 def create_memory_proposal():
@@ -339,6 +401,196 @@ def chat(message_override=None):
         "chat",
     }:
         intent = "chat"
+
+    # Retrieve saved reminders without creating a duplicate reminder.
+    normalized_message = message.casefold()
+
+    if "reminder" in normalized_message and any(
+        phrase in normalized_message
+        for phrase in (
+            "what reminder",
+            "which reminder",
+            "repeat",
+            "last reminder",
+            "latest reminder",
+        )
+    ):
+        reminders = get_reminders()
+
+        if not reminders:
+            return jsonify({
+                "reply": "You don't have any saved reminders.",
+                "intent": "recall_reminder"
+            })
+
+        latest = reminders[0]
+
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        # Convert the saved UTC timestamp into local time.
+        due_local = datetime.fromisoformat(
+            latest["due_at"].replace("Z", "+00:00")
+        ).astimezone(
+            ZoneInfo(os.getenv("MAVIS_TIMEZONE", "America/New_York"))
+        )
+
+        hours = (
+            "twelve", "one", "two", "three", "four", "five",
+            "six", "seven", "eight", "nine", "ten", "eleven"
+        )
+        numbers = (
+            "zero", "one", "two", "three", "four", "five",
+            "six", "seven", "eight", "nine", "ten", "eleven",
+            "twelve", "thirteen", "fourteen", "fifteen",
+            "sixteen", "seventeen", "eighteen", "nineteen"
+        )
+        tens = ("", "", "twenty", "thirty", "forty", "fifty")
+
+        minute = due_local.minute
+        minute_text = ""
+
+        if minute:
+            if minute < 10:
+                minute_text = f" oh {numbers[minute]}"
+            elif minute < 20:
+                minute_text = f" {numbers[minute]}"
+            else:
+                minute_text = f" {tens[minute // 10]}"
+                if minute % 10:
+                    minute_text += f" {numbers[minute % 10]}"
+
+        # Pronounce calendar dates as ordinals for natural speech.
+        ordinal_days = (
+            "first", "second", "third", "fourth", "fifth",
+            "sixth", "seventh", "eighth", "ninth", "tenth",
+            "eleventh", "twelfth", "thirteenth", "fourteenth",
+            "fifteenth", "sixteenth", "seventeenth",
+            "eighteenth", "nineteenth", "twentieth",
+            "twenty first", "twenty second", "twenty third",
+            "twenty fourth", "twenty fifth", "twenty sixth",
+            "twenty seventh", "twenty eighth", "twenty ninth",
+            "thirtieth", "thirty first"
+        )
+
+        spoken_date = (
+            f"{due_local.strftime('%B')} "
+            f"{ordinal_days[due_local.day - 1]}"
+        )
+
+        # Express times as natural spoken phrases.
+        hour_text = hours[due_local.hour % 12]
+
+        if due_local.minute == 0:
+            spoken_time = f"{hour_text} o'clock"
+        else:
+            spoken_time = f"{hour_text}{minute_text}"
+
+        if 5 <= due_local.hour < 12:
+            spoken_time += " in the morning"
+        elif 12 <= due_local.hour < 17:
+            spoken_time += " in the afternoon"
+        elif 17 <= due_local.hour < 21:
+            spoken_time += " in the evening"
+        else:
+            spoken_time += " at night"
+
+
+        return jsonify({
+            "reply": (
+                f"Your most recent reminder is to {latest['message']}. "
+                f"It's scheduled for {spoken_date} at {spoken_time}."
+            ),
+            "intent": "recall_reminder",
+            "reminder_id": latest["id"]
+        })
+
+    if intent == "reminder":
+        from datetime import datetime, timezone
+        from zoneinfo import ZoneInfo
+
+        # Resolve spoken dates using the user's configured timezone.
+        local_tz = ZoneInfo(
+            os.getenv("MAVIS_TIMEZONE", "America/New_York")
+        )
+        now_local = datetime.now(local_tz)
+
+        # Extract the reminder message and scheduled time.
+        extraction = client.responses.create(
+            model="muse-spark-1.3",
+            instructions=(
+                "Extract a reminder message and due time. "
+                f"Current local time: {now_local.isoformat()}. "
+                f"Timezone: {local_tz.key}. "
+                "Return ONLY a JSON object with keys message and due_at. "
+                "Use an ISO 8601 datetime with an explicit UTC offset. "
+                "Resolve relative dates such as tomorrow using the current time. "
+                "If the date or time is missing, set due_at to null. "
+                "Never invent missing information."
+            ),
+            input=message.strip()
+        )
+
+        try:
+            details = json.loads(extraction.output_text.strip())
+            reminder_message = details.get("message")
+            due_at = details.get("due_at")
+        except (ValueError, AttributeError):
+            return jsonify({
+                "reply": "Please tell me what and when to remind you."
+            }), 422
+
+        if (
+            not isinstance(reminder_message, str)
+            or not reminder_message.strip()
+            or not isinstance(due_at, str)
+        ):
+            return jsonify({
+                "reply": "What date and time should I set the reminder for?"
+            })
+
+        try:
+            scheduled = datetime.fromisoformat(
+                due_at.replace("Z", "+00:00")
+            )
+
+            if scheduled.tzinfo is None:
+                raise ValueError("A timezone is required.")
+
+            if scheduled <= datetime.now(timezone.utc):
+                return jsonify({
+                    "reply": "That time has already passed. Please choose a future time."
+                }), 400
+
+            # Builder: persist the requested reminder.
+            reminder_id = save_reminder(reminder_message, due_at)
+
+            # Verifier: independently confirm the persisted values.
+            verified = verify_reminder_saved(
+                reminder_id, reminder_message, due_at
+            )
+        except ValueError:
+            return jsonify({
+                "reply": "I couldn't understand that reminder time."
+            }), 422
+
+        if not verified:
+            return jsonify({
+                "reply": "The reminder could not be verified.",
+                "verified": False
+            }), 500
+
+        local_due = scheduled.astimezone(local_tz)
+
+        return jsonify({
+            "reply": (
+                f"I saved your reminder to {reminder_message.strip()} "
+                f"for {format_spoken_reminder(local_due)}."
+            ),
+            "intent": "reminder",
+            "reminder_id": reminder_id,
+            "verified": True
+        }), 201
 
     if intent == "add_task":
         title_response = client.responses.create(

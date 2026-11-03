@@ -83,6 +83,71 @@ async function speakResponse(text) {
   }
 }
 
+const displayedReminderIds = new Set();
+
+async function checkDueReminders() {
+  // Retrieve reminders that have reached their scheduled time.
+  try {
+    const result = await api("/api/reminders/due");
+
+    for (const reminder of result.reminders) {
+      // Avoid displaying the same reminder twice during this session.
+      if (displayedReminderIds.has(reminder.id)) continue;
+      displayedReminderIds.add(reminder.id);
+
+      // Display the reminder without interrupting the task dashboard.
+      const notification = document.createElement("div");
+      notification.setAttribute("role", "alert");
+      notification.style.cssText = `
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 9999;
+        background: #19213e;
+        color: white;
+        border: 1px solid #5ccfe6;
+        border-radius: 12px;
+        padding: 16px;
+        max-width: 340px;
+        box-shadow: 0 8px 24px #0006;
+      `;
+
+      const message = document.createElement("p");
+      message.textContent = `🔔 MAVIS Reminder: ${reminder.message}`;
+
+      const dismiss = document.createElement("button");
+      dismiss.textContent = "Dismiss";
+
+      // Acknowledge only when the user dismisses the notification.
+      dismiss.addEventListener("click", async () => {
+        try {
+          await api(
+            `/api/reminders/${reminder.id}/acknowledge`,
+            "POST"
+          );
+          notification.remove();
+        } catch (error) {
+          console.error("Reminder acknowledgment failed:", error);
+        }
+      });
+
+      notification.append(message, dismiss);
+      document.body.appendChild(notification);
+
+      // Reuse the existing Kokoro ONNX speech system.
+      try {
+        await speakResponse(
+          `You asked me to remind you to ${reminder.message}.`
+        );
+      } catch (error) {
+        console.warn("Reminder audio could not play:", error);
+      }
+    }
+  } catch (error) {
+    console.error("Reminder check failed:", error);
+  }
+}
+
 function render() {
   document.querySelector("#next").textContent = recommendation
     ? recommendation.title + ": " + recommendation.reason
@@ -400,3 +465,19 @@ mavisOrb.addEventListener("click", () => {
     recordButton.click();
   }
 });
+
+function startReminderChecks() {
+  // Check immediately, then poll while the MAVIS page is open.
+  checkDueReminders();
+  setInterval(checkDueReminders, 15000);
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener(
+    "DOMContentLoaded",
+    startReminderChecks,
+    { once: true }
+  );
+} else {
+  startReminderChecks();
+}

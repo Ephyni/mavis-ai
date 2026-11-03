@@ -33,10 +33,162 @@ def init_db():
         )
     """)
 
+    # Persist reminders so they survive application restarts.
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS reminders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message TEXT NOT NULL,
+            due_at TEXT NOT NULL,
+            notified INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     connection.commit()
     connection.close()
 
     print("MAVIS memory database initialized!")
+
+
+def save_reminder(message, due_at):
+    """Persist a reminder with a UTC due time."""
+    from datetime import datetime, timezone
+
+    if not isinstance(message, str) or not message.strip():
+        raise ValueError("Reminder message is required.")
+
+    if not isinstance(due_at, str):
+        raise ValueError("A UTC due time is required.")
+
+    due = datetime.fromisoformat(due_at.replace("Z", "+00:00"))
+
+    if due.tzinfo is None:
+        raise ValueError("Reminder due time must include a timezone.")
+
+    due_utc = due.astimezone(timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
+    connection = sqlite3.connect(DATABASE)
+
+    try:
+        cursor = connection.execute(
+            "INSERT INTO reminders (message, due_at) VALUES (?, ?)",
+            (message.strip(), due_utc)
+        )
+        connection.commit()
+        return cursor.lastrowid
+    finally:
+        connection.close()
+
+def verify_reminder_saved(reminder_id, expected_message, expected_due_at):
+    """Independently verify a reminder's persisted SQLite values."""
+    from datetime import datetime, timezone
+
+    if not isinstance(expected_message, str) or not isinstance(expected_due_at, str):
+        return False
+
+    try:
+        due = datetime.fromisoformat(
+            expected_due_at.replace("Z", "+00:00")
+        )
+        if due.tzinfo is None:
+            return False
+
+        expected_utc = due.astimezone(timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+    except ValueError:
+        return False
+
+    connection = sqlite3.connect(DATABASE)
+
+    try:
+        record = connection.execute(
+            "SELECT message, due_at FROM reminders WHERE id = ?",
+            (reminder_id,)
+        ).fetchone()
+
+        return (
+            record is not None
+            and record[0] == expected_message.strip()
+            and record[1] == expected_utc
+        )
+    finally:
+        connection.close()
+
+def get_reminders():
+    """Retrieve saved reminders for conversational recall."""
+    connection = sqlite3.connect(DATABASE)
+    connection.row_factory = sqlite3.Row
+
+    try:
+        cursor = connection.execute(
+            """
+            SELECT id, message, due_at, notified
+            FROM reminders
+            ORDER BY id DESC
+            """
+        )
+
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        connection.close()
+
+def get_due_reminders(cutoff_utc=None):
+    """Retrieve unnotified reminders due by the specified UTC time."""
+    from datetime import datetime, timezone
+
+    if cutoff_utc is None:
+        cutoff_utc = datetime.now(timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+
+    connection = sqlite3.connect(DATABASE)
+    connection.row_factory = sqlite3.Row
+
+    try:
+        cursor = connection.execute(
+            """
+            SELECT id, message, due_at
+            FROM reminders
+            WHERE notified = 0
+              AND due_at <= ?
+            ORDER BY due_at ASC
+            """,
+            (cutoff_utc,),
+        )
+
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        connection.close()
+
+def mark_reminder_notified(reminder_id):
+    """Acknowledge a due reminder once after notification delivery."""
+    from datetime import datetime, timezone
+
+    now_utc = datetime.now(timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
+    connection = sqlite3.connect(DATABASE)
+
+    try:
+        cursor = connection.execute(
+            """
+            UPDATE reminders
+            SET notified = 1
+            WHERE id = ?
+              AND notified = 0
+              AND due_at <= ?
+            """,
+            (reminder_id, now_utc),
+        )
+
+        connection.commit()
+        return cursor.rowcount == 1
+    finally:
+        connection.close()
 
     
 def save_memory(content, category="general"):
