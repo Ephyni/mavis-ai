@@ -333,6 +333,116 @@ def chat(message_override=None):
         session.pop("pending_delete_task_id", None)
 
 
+    # Handle explicit conversational memory requests before model intent routing.
+    # Voice and text use this same handler and require approval before saving.
+    memory_answer = message.strip().casefold().rstrip(".!?").strip()
+    remember_command = re.match(
+        r"^(?:(?:hey|hi)[,\s]+)?(?:mavis[,\s]+)?"
+        r"(?:please\s+)?remember\s+that\s+(?P<fact>.+)$",
+        message.strip(),
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    pending_memory_id = session.get("pending_memory_proposal_id")
+
+    if pending_memory_id is not None:
+        accept_memory = {
+            "yes", "yes please", "yes, please", "yes save it",
+            "yes, save it", "yes please save it", "save it",
+            "please save it", "confirm", "confirm save",
+            "sure", "go ahead",
+        }
+        decline_memory = {
+            "no", "no thanks", "no, thanks", "cancel",
+            "don't save it", "do not save it",
+            "no, don't save it", "no don't save it", "reject",
+        }
+
+        if memory_answer in accept_memory:
+            # Consume this confirmation once to prevent a repeated "yes" saving twice.
+            session.pop("pending_memory_proposal_id", None)
+            proposal = next(
+                (item for item in get_proposals()
+                 if item["id"] == pending_memory_id),
+                None,
+            )
+            if proposal is None:
+                return jsonify({
+                    "reply": "That memory is no longer pending approval.",
+                    "intent": "save_memory",
+                    "verified": False,
+                }), 409
+
+            memory_id = approve_memory(pending_memory_id)
+            saved = next(
+                (item for item in get_memories()
+                 if item["id"] == memory_id
+                 and item["content"] == proposal["content"]),
+                None,
+            )
+            if saved is None:
+                return jsonify({
+                    "reply": "I couldn't verify that the memory was saved.",
+                    "intent": "save_memory",
+                    "verified": False,
+                }), 500
+
+            return jsonify({
+                "reply": f"Saved and verified. I'll remember: {saved['content']}",
+                "intent": "save_memory",
+                "memory_id": memory_id,
+                "verified": True,
+            })
+
+        # A refusal rejects the proposal; a new command cancels it safely.
+        session.pop("pending_memory_proposal_id", None)
+        rejected = reject_memory(pending_memory_id)
+        if memory_answer in decline_memory:
+            return jsonify({
+                "reply": (
+                    "Okay, I won't save that memory."
+                    if rejected else "That memory is no longer pending approval."
+                ),
+                "intent": "save_memory",
+                "cancelled": rejected,
+            })
+
+    if remember_command:
+        fact = remember_command.group("fact").strip()
+        if not fact:
+            return jsonify({
+                "reply": "What would you like me to remember?",
+                "intent": "save_memory",
+            })
+        if len(fact) > 500:
+            return jsonify({
+                "reply": "Please keep that memory under 500 characters.",
+                "intent": "save_memory",
+            }), 400
+
+        proposal_id = propose_memory(fact)
+        proposed = next(
+            (item for item in get_proposals()
+             if item["id"] == proposal_id and item["content"] == fact),
+            None,
+        )
+        if proposed is None:
+            return jsonify({
+                "reply": "I couldn't verify the memory request.",
+                "intent": "save_memory",
+                "verified": False,
+            }), 500
+
+        session["pending_memory_proposal_id"] = proposal_id
+        return jsonify({
+            "reply": (
+                f"I can remember that: {fact} "
+                "Would you like me to save it? Say yes or no."
+            ),
+            "intent": "save_memory",
+            "proposal_id": proposal_id,
+            "pending_approval": True,
+        })
+
     if message.lower().startswith("add task:"):
         title = message.split(":", 1)[1].strip()
 
