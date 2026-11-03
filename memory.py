@@ -220,6 +220,13 @@ def get_tasks(completed=None):
         connection.close()
 
 
+def verify_task_created(task_id, expected_title):
+    """Confirm that a newly created task was persisted in SQLite."""
+    return any(
+        task["id"] == task_id and task["title"] == expected_title
+        for task in get_tasks()
+    )
+
 
 def complete_task(task_id):
     """
