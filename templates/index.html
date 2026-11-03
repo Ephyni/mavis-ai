@@ -1,48 +1,43 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>MAVIS · Your day, clearer</title>
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='style.css') }}"
-    />
-  </head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#091427">
+  <title>MAVIS · Make room for what matters</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <aside class="mavis-sidebar" aria-label="MAVIS sidebar">
+    <div class="mavis-brand"><span class="brand-mark" aria-hidden="true">✦</span> MAVIS</div>
+    <p class="sidebar-caption">YOUR AI WORKSPACE</p>
+    <nav class="mavis-nav" aria-label="Main navigation">
+      <button type="button" data-view="home" aria-controls="view-home" aria-pressed="true"><span aria-hidden="true">⌂</span> Home</button>
+      <button type="button" data-view="tasks" aria-controls="view-tasks" aria-pressed="false"><span aria-hidden="true">☑</span> Tasks</button>
+      <button type="button" data-view="memory" aria-controls="view-memory" aria-pressed="false"><span aria-hidden="true">◈</span> Memory</button>
+      <button type="button" data-view="settings" aria-controls="view-settings" aria-pressed="false"><span aria-hidden="true">⚙</span> Settings</button>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="online-dot" aria-hidden="true"></span>
+      <span>MAVIS workspace</span>
+    </div>
+  </aside>
 
-  <body>
-    
-    <!-- MAVIS navigation sidebar -->
-    <aside class="mavis-sidebar">
-      <div class="mavis-brand">✦ MAVIS</div>
+  <header class="app-header">
+    <span class="header-overline">MAVIS / WORKSPACE</span>
+    <span>Your day, a little clearer.</span>
+  </header>
 
-      <nav class="mavis-nav" aria-label="Main navigation">
-        <a href="#home">Home</a>
-        <a href="#tasks-panel">Tasks</a>
-        <span>Memory</span>
-        <span>Projects</span>
-        <span>Settings</span>
-      </nav>
-
-      <div class="mavis-online">● Online</div>
-    </aside>
-
-    <header>
-      <strong>MAVIS</strong><span>Your day, a little clearer.</span>
-    </header>
-    <main id="home">
-    <p class="eyebrow">Welcome back!</p>
-    <h1>I'm <span class="mavis-highlight">MAVIS</span></h1>
-    <p class="mavis-tagline">Make room for what matters.</p>
-    <p class="mavis-subtagline">And your day, a little clearer.</p>
-
-      <section class="next">
-        <p class="eyebrow">YOUR NEXT STEP</p>
-        <h2 id="next">Loading your tasks…</h2>
-        <button id="speak">Hear my next step</button
-        ><button id="stop">Stop audio</button>
-<!-- MAVIS interactive holographic voice orb -->
-<div class="orb-container">
+  <main id="app-content">
+    <!-- Dedicated Home view: the orb is still the original voice-command button. -->
+    <section id="view-home" class="view-screen" aria-label="Home">
+      <div class="home-layout">
+        <div class="conversation-stage">
+          <p class="eyebrow">WELCOME BACK</p>
+          <h1>I'm <span class="mavis-highlight">MAVIS</span></h1>
+          <p class="mavis-tagline">Make room for what matters.</p>
+          <p class="mavis-subtagline">And your day, a little clearer.</p>
+          <div class="orb-container hero-orb">
     <button
         id="mavis-orb"
         class="mavis-orb"
@@ -115,64 +110,129 @@
     </button>
 
     <p class="orb-label">MAVIS</p>
-</div>
+            </div>
+          <p class="orb-hint">Tap the orb and tell me what's on your mind.</p>
+          <div class="voice-actions">
+            <button type="button" id="record-voice" class="primary-action">🎙 Start voice command</button>
+            <button type="button" id="stop-recording" class="secondary-action" disabled>Stop recording</button>
+          </div>
+          <p id="voice-status" class="voice-status" role="status" aria-live="polite"></p>
+          <section class="conversation-panel" aria-label="Text conversation">
+            <div id="chat-log" class="chat-log" role="log" aria-live="polite">
+              <p class="chat-placeholder">Your conversation will appear here when you send a message.</p>
+            </div>
+            <form id="chat-form" class="chat-composer">
+              <label for="chat-input" class="sr-only">Message MAVIS</label>
+              <input id="chat-input" name="message" type="text" maxlength="1000" placeholder="Ask MAVIS anything…" autocomplete="off" required>
+              <button id="send-chat" class="send-action" type="submit" aria-label="Send message">Send <span aria-hidden="true">↗</span></button>
+            </form>
+          </section>
+        </div>
 
-        <button id="record-voice" type="button">🎤 Start voice command</button>
+        <aside class="home-side" aria-label="Productivity overview">
+          <section class="side-card next-step-card">
+            <div class="card-kicker">YOUR NEXT STEP</div>
+            <h2 id="next">Loading your tasks…</h2>
+            <div class="card-actions">
+              <button id="speak" type="button">Hear my next step</button>
+              <button id="stop" type="button">Stop audio</button>
+            </div>
+          </section>
+          <section class="side-card">
+            <div class="card-topline"><h2>Active tasks</h2><button type="button" data-view="tasks" class="text-action">View all</button></div>
+            <div id="home-tasks" class="compact-task-list"><p class="muted">Loading tasks…</p></div>
+          </section>
+          <section class="side-card">
+            <h2>Recent activity</h2>
+            <div id="recent-activity" class="activity-list"><p class="muted">Activity appears here as you manage tasks.</p></div>
+          </section>
+        </aside>
+      </div>
+    </section>
 
-        <button id="stop-recording" type="button" disabled>
-          Stop recording
-        </button>
-
-        <p id="voice-status" role="status"></p>
-      </section>
-      <div class="workspace">
-        <form>
-          <h2>Add a task</h2>
-          <label
-            >What needs doing?<input
-              name="title"
-              required
-              maxlength="500"
-              placeholder="Finish scholarship application"
-          /></label>
-          <label>Deadline<input name="due_date" type="date" /></label
-          ><label
-            >Importance<select name="priority">
-              <option value="low">Low</option>
-              <option value="medium" selected>Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </select></label
-          >
-          <label
-            >Estimated minutes<input
-              name="estimated_minutes"
-              type="number"
-              min="1"
-              max="10080"
-              value="30"
-              required /></label
-          ><button class="primary" type="submit">Add task</button>
-        </form>
+    <!-- The existing task dashboard is preserved in its own navigable view. -->
+    <section id="view-tasks" class="view-screen" aria-label="Tasks" hidden>
+      <div class="view-heading"><p class="eyebrow">STAY ON TRACK</p><h1>Tasks</h1><p>Make progress on what matters, one verified step at a time.</p></div>
+      <div class="tasks-layout">
         <section class="panel" id="tasks-panel">
-          <h2>Your tasks</h2>
-          <nav aria-label="Task filters">
-            <button data-filter="open" aria-pressed="true">Open</button
-            ><button data-filter="today" aria-pressed="false">Today</button
-            ><button data-filter="completed" aria-pressed="false">
-              Completed
-            </button>
+          <div class="panel-heading"><h2>Your tasks</h2><p>Organized by importance and urgency.</p></div>
+          <nav class="filter-nav" aria-label="Task filters">
+            <button type="button" data-filter="open" aria-pressed="true">Open</button>
+            <button type="button" data-filter="today" aria-pressed="false">Today</button>
+            <button type="button" data-filter="completed" aria-pressed="false">Completed</button>
           </nav>
           <p id="status" role="status"></p>
           <div id="list"></div>
         </section>
+        <form id="task-form" class="panel task-form">
+          <h2>Add a task</h2>
+          <label>What needs doing?<input name="title" required maxlength="500" placeholder="Finish scholarship application"></label>
+          <label>Deadline<input name="due_date" type="date"></label>
+          <label>Importance
+            <select name="priority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </label>
+          <label>Estimated minutes<input name="estimated_minutes" type="number" min="1" max="10080" value="30" required></label>
+          <button class="primary-action full-width" type="submit">Add task</button>
+        </form>
       </div>
-      <p class="footnote">
-        Recommendations consider importance and deadlines. You choose what works
-        for your day. Today includes overdue tasks and uses your device’s local
-        date.
-      </p>
-    </main>
-    <script src="{{ url_for('static', filename='tasks.js') }}"></script>
-  </body>
+      <p class="footnote">Recommendations consider importance and deadlines. The Today filter includes overdue tasks and uses your device's local date.</p>
+    </section>
+
+    <!-- Memory is connected to existing SQLite memory and approval endpoints. -->
+    <section id="view-memory" class="view-screen" aria-label="Memory" hidden>
+      <div class="view-heading"><p class="eyebrow">PERSISTENT MEMORY</p><h1>Memory</h1><p>See what MAVIS remembers and manage stored information.</p></div>
+      <div class="memory-layout">
+        <div class="stack">
+          <section class="panel">
+            <h2>Save a memory</h2>
+            <p class="panel-description">Keep a fact available for future conversations.</p>
+            <form id="memory-form">
+              <label for="memory-content">What should MAVIS remember?</label>
+              <textarea id="memory-content" name="content" rows="3" maxlength="1500" placeholder="My presentation is on Friday…" required></textarea>
+              <button type="submit" class="primary-action">Save memory</button>
+            </form>
+            <p id="memory-status" role="status"></p>
+          </section>
+          <section class="panel">
+            <h2>Pending approval</h2>
+            <p class="panel-description">Approve or reject proposed memories before they are saved.</p>
+            <div id="proposals-list" class="memory-list"></div>
+          </section>
+        </div>
+        <section class="panel">
+          <h2>Saved memories</h2>
+          <p class="panel-description">Stored locally in SQLite; available after application restarts.</p>
+          <p id="memory-fetch-status" role="status"></p>
+          <div id="memories-list" class="memory-list"><p class="muted">Select Memory to load saved information.</p></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- Settings control real browser preferences, not unimplemented backend features. -->
+    <section id="view-settings" class="view-screen" aria-label="Settings" hidden>
+      <div class="view-heading"><p class="eyebrow">YOUR WORKSPACE</p><h1>Settings</h1><p>Control how MAVIS looks and sounds in this browser.</p></div>
+      <div class="settings-layout">
+        <section class="panel setting-card">
+          <h2>Voice responses</h2>
+          <label class="setting-option"><span>Play spoken MAVIS responses <small>Disabling this also mutes spoken reminders; on-screen notifications remain available.</small></span><input id="voice-playback-setting" type="checkbox" checked></label>
+        </section>
+        <section class="panel setting-card">
+          <h2>Appearance</h2>
+          <label class="setting-option"><span>Reduce orb motion <small>Keep the orb's color-state feedback without continuous animation.</small></span><input id="reduce-motion-setting" type="checkbox"></label>
+        </section>
+        <section class="panel setting-card">
+          <h2>About this prototype</h2>
+          <p>Tasks, memories, and reminders are saved in the local SQLite database. The server's timezone is configured in your private <code>.env</code> file.</p>
+          <p class="muted">Browser preferences are stored on this device. MAVIS is a local single-user prototype and does not provide account authentication.</p>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='tasks.js') }}"></script>
+</body>
 </html>

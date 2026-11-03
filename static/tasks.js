@@ -33,6 +33,10 @@ async function load() {
 async function speakResponse(text) {
   // Request synthesized speech without modifying task state.
   if (typeof text !== "string" || !text.trim()) return;
+  if (!voiceResponsesEnabled()) {
+    setOrbState("idle");
+    return;
+  }
 
   // Remove Markdown formatting before speech synthesis.
   const spokenText = text
@@ -195,6 +199,7 @@ function render() {
     card.append(toggle, remove);
     list.append(card);
   }
+  renderHomeSummary();
 }
 async function change(button, url, method, data) {
   button.disabled = true;
@@ -208,7 +213,7 @@ async function change(button, url, method, data) {
     button.disabled = false;
   }
 }
-document.querySelector("form").onsubmit = async (e) => {
+document.querySelector("#task-form").onsubmit = async (e) => {
   e.preventDefault();
   const f = e.currentTarget,
     b = f.querySelector("button"),
@@ -450,6 +455,7 @@ if (typeof result.reply === "string" && result.reply.trim()) {
 
     } catch (error) {
       voiceStatus.textContent = error.message;
+      setOrbState("idle");
       console.error(error);
     } finally {
       recordButton.disabled = false;
@@ -481,3 +487,217 @@ if (document.readyState === "loading") {
 } else {
   startReminderChecks();
 }
+
+
+// Ground the Home overview in actual task records, not simulated activity.
+function renderHomeSummary() {
+  const active = document.querySelector("#home-tasks");
+  const recent = document.querySelector("#recent-activity");
+  if (!active || !recent) return;
+  active.replaceChildren();
+  recent.replaceChildren();
+
+  const open = tasks.filter((task) => !task.completed).slice(0, 3);
+  if (!open.length) {
+    active.append(node("p", "No open tasks. You're all caught up."));
+  }
+  for (const task of open) {
+    const item = node("div", "");
+    item.className = "mini-task";
+    const title = node("strong", task.title);
+    const detail = node("span", task.due_date ? "Due " + task.due_date : "No deadline");
+    item.append(title, detail);
+    active.append(item);
+  }
+
+  const latest = [...tasks].sort((a, b) => b.id - a.id).slice(0, 3);
+  if (!latest.length) {
+    recent.append(node("p", "Task activity appears here after you create a task."));
+  }
+  for (const task of latest) {
+    const item = node("div", "");
+    item.className = "activity-entry";
+    item.append(
+      node("strong", task.completed ? "Completed task" : "Saved task"),
+      node("span", task.title),
+    );
+    recent.append(item);
+  }
+}
+
+// Navigation changes only which view is visible; it does not replace the page.
+const mavisViews = ["home", "tasks", "memory", "settings"];
+function activateView() {
+  const requested = window.location.hash.slice(1);
+  const view = mavisViews.includes(requested) ? requested : "home";
+  for (const screen of document.querySelectorAll(".view-screen")) {
+    screen.hidden = screen.id !== "view-" + view;
+  }
+  for (const button of document.querySelectorAll(".mavis-nav [data-view]")) {
+    button.setAttribute("aria-pressed", String(button.dataset.view === view));
+  }
+  if (view === "memory") {
+    void loadMavisMemories();
+  }
+}
+document.querySelectorAll("[data-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const hash = "#" + button.dataset.view;
+    if (window.location.hash === hash) activateView();
+    else window.location.hash = hash;
+  });
+});
+window.addEventListener("hashchange", activateView);
+activateView();
+
+// The Memory screen uses the app's existing save, list, and approval APIs.
+async function loadMavisMemories() {
+  const saved = document.querySelector("#memories-list");
+  const pending = document.querySelector("#proposals-list");
+  const fetchStatus = document.querySelector("#memory-fetch-status");
+  fetchStatus.textContent = "";
+  try {
+    const [memoryResult, proposalResult] = await Promise.all([
+      api("/api/memories"),
+      api("/api/memory-proposals"),
+    ]);
+    saved.replaceChildren();
+    pending.replaceChildren();
+
+    if (!memoryResult.memories.length) {
+      saved.append(node("p", "No memories saved yet."));
+    }
+    for (const memory of memoryResult.memories) {
+      const item = node("div", "");
+      item.className = "memory-item";
+      item.append(
+        node("p", memory.content),
+        node("small", memory.category || "general"),
+      );
+      saved.append(item);
+    }
+
+    if (!proposalResult.proposals.length) {
+      pending.append(node("p", "No memories awaiting approval."));
+    }
+    for (const proposal of proposalResult.proposals) {
+      const item = node("div", "");
+      item.className = "memory-item";
+      item.append(node("p", proposal.content));
+      const actions = node("div", "");
+      actions.className = "memory-actions";
+      const approve = node("button", "Approve");
+      approve.type = "button";
+      approve.className = "approve";
+      const reject = node("button", "Reject");
+      reject.type = "button";
+      for (const [button, action] of [[approve, "approve"], [reject, "reject"]]) {
+        button.onclick = async () => {
+          approve.disabled = true;
+          reject.disabled = true;
+          try {
+            await api("/api/memory-proposals/" + proposal.id + "/" + action, "POST");
+            await loadMavisMemories();
+          } catch (error) {
+            fetchStatus.textContent = error.message;
+            approve.disabled = false;
+            reject.disabled = false;
+          }
+        };
+      }
+      actions.append(approve, reject);
+      item.append(actions);
+      pending.append(item);
+    }
+  } catch (error) {
+    fetchStatus.textContent = "Unable to load memories: " + error.message;
+  }
+}
+document.querySelector("#memory-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const content = document.querySelector("#memory-content").value.trim();
+  const saveButton = form.querySelector('button[type="submit"]');
+  const memoryStatus = document.querySelector("#memory-status");
+  if (!content) return;
+  saveButton.disabled = true;
+  try {
+    await api("/api/memories", "POST", { content });
+    form.reset();
+    memoryStatus.textContent = "Memory saved.";
+    await loadMavisMemories();
+  } catch (error) {
+    memoryStatus.textContent = error.message;
+  } finally {
+    saveButton.disabled = false;
+  }
+});
+
+// Text messages share the same Flask /api/chat route and verification logic as voice.
+function addMavisChatMessage(role, message) {
+  const log = document.querySelector("#chat-log");
+  log.querySelector(".chat-placeholder")?.remove();
+  const bubble = node("p", message);
+  bubble.className = "chat-message " + role;
+  log.append(bubble);
+  log.scrollTop = log.scrollHeight;
+}
+document.querySelector("#chat-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = document.querySelector("#chat-input");
+  const send = document.querySelector("#send-chat");
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = "";
+  send.disabled = true;
+  addMavisChatMessage("user", message);
+  try {
+    const response = await api("/api/chat", "POST", { message });
+    addMavisChatMessage("assistant", response.reply || "Your request was processed.");
+    await load();
+    if (response.reply) {
+      try {
+        await speakResponse(response.reply);
+      } catch (error) {
+        console.warn("Voice playback failed:", error);
+      }
+    }
+  } catch (error) {
+    addMavisChatMessage("error", "MAVIS couldn't complete that request: " + error.message);
+  } finally {
+    send.disabled = false;
+    input.focus();
+  }
+});
+
+// These settings are browser-local controls, not new server-side preferences.
+const voiceSetting = document.querySelector("#voice-playback-setting");
+const motionSetting = document.querySelector("#reduce-motion-setting");
+function readPreference(key, fallback) {
+  try {
+    const saved = localStorage.getItem(key);
+    return saved === null ? fallback : saved === "true";
+  } catch {
+    return fallback;
+  }
+}
+function writePreference(key, value) {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch {
+    // The preference still works for this page if browser storage is unavailable.
+  }
+}
+function voiceResponsesEnabled() {
+  return voiceSetting?.checked !== false;
+}
+voiceSetting.checked = readPreference("mavis.voicePlayback", true);
+motionSetting.checked = readPreference("mavis.reduceMotion", false);
+document.body.classList.toggle("reduce-motion", motionSetting.checked);
+voiceSetting.addEventListener("change", () => {
+  writePreference("mavis.voicePlayback", voiceSetting.checked);
+});
+motionSetting.addEventListener("change", () => {
+  document.body.classList.toggle("reduce-motion", motionSetting.checked);
+  writePreference("mavis.reduceMotion", motionSetting.checked);
+});
