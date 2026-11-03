@@ -694,20 +694,11 @@ function voiceResponsesEnabled() {
 voiceSetting.checked = readPreference("mavis.voicePlayback", true);
 motionSetting.checked = readPreference("mavis.reduceMotion", false);
 
-// SVG tracer animations need explicit pausing; CSS alone does not stop SMIL.
-const orbEnergySvg = document.querySelector("#mavis-orb .orb-energy-svg");
+// All orb effects now use CSS, including the luminous strand tracers.
 const systemMotionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
 function syncOrbMotionPreference() {
   const reduced = motionSetting.checked || systemMotionPreference.matches;
   document.body.classList.toggle("reduce-motion", reduced);
-
-  if (orbEnergySvg) {
-    if (reduced && typeof orbEnergySvg.pauseAnimations === "function") {
-      orbEnergySvg.pauseAnimations();
-    } else if (!reduced && typeof orbEnergySvg.unpauseAnimations === "function") {
-      orbEnergySvg.unpauseAnimations();
-    }
-  }
 }
 syncOrbMotionPreference();
 

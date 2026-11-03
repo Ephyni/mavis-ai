@@ -181,7 +181,22 @@ p { line-height: 1.55; }
 .energy-strand path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .strand-halo { stroke-width: 12; opacity: .43; filter: blur(5.5px); }
 .strand-base { stroke-width: 2.7; opacity: .84; }
+/* CSS owns every strand animation so the reduced-motion class stops all motion. */
 .strand-spark { stroke-width: 2.4; opacity: .91; stroke-dasharray: 37 403; }
+.energy-strand--primary .strand-spark {
+  animation: mavis-spark-primary 6.8s linear infinite;
+}
+.energy-strand--secondary .strand-spark {
+  animation: mavis-spark-secondary 8.4s linear infinite;
+}
+@keyframes mavis-spark-primary {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -440; }
+}
+@keyframes mavis-spark-secondary {
+  from { stroke-dashoffset: -270; }
+  to { stroke-dashoffset: -710; }
+}
 .energy-strand--rear { opacity: .36; animation: energy-weave-rear 9s ease-in-out infinite; }
 .energy-strand--rear .strand-base { stroke-width: 1.5; }
 .energy-strand--primary { animation: energy-weave-primary 7.6s ease-in-out infinite; }
@@ -396,13 +411,19 @@ p { line-height: 1.55; }
 .setting-option input[type="checkbox"] { width: 20px; height: 20px; accent-color: #4dc4ff; flex-shrink: 0; }
 .setting-card p { color: #c1d3e5; font-size: .87rem; }
 .setting-card code { padding: 2px 5px; border-radius: 4px; background: #1c344c; }
+/* Stop the sphere, energy-group drift, and dashed strand highlights together. */
 body.reduce-motion .mavis-orb,
 body.reduce-motion .orb-core,
 body.reduce-motion .orb-glow,
 body.reduce-motion .energy-strand,
-body.reduce-motion .orb-filaments svg path { animation: none !important; }
+body.reduce-motion .strand-spark {
+  animation: none !important;
+}
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  .mavis-orb, .orb-core, .orb-glow, .energy-strand, .strand-spark {
+    animation: none !important;
+  }
+  *, *::before, *::after { transition-duration: .01ms !important; }
 }
 @media (max-width: 1190px) {
   .home-layout { grid-template-columns: minmax(0, 1fr) 280px; gap: 22px; }
