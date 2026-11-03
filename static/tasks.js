@@ -693,11 +693,31 @@ function voiceResponsesEnabled() {
 }
 voiceSetting.checked = readPreference("mavis.voicePlayback", true);
 motionSetting.checked = readPreference("mavis.reduceMotion", false);
-document.body.classList.toggle("reduce-motion", motionSetting.checked);
+
+// SVG tracer animations need explicit pausing; CSS alone does not stop SMIL.
+const orbEnergySvg = document.querySelector("#mavis-orb .orb-energy-svg");
+const systemMotionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+function syncOrbMotionPreference() {
+  const reduced = motionSetting.checked || systemMotionPreference.matches;
+  document.body.classList.toggle("reduce-motion", reduced);
+
+  if (orbEnergySvg) {
+    if (reduced && typeof orbEnergySvg.pauseAnimations === "function") {
+      orbEnergySvg.pauseAnimations();
+    } else if (!reduced && typeof orbEnergySvg.unpauseAnimations === "function") {
+      orbEnergySvg.unpauseAnimations();
+    }
+  }
+}
+syncOrbMotionPreference();
+
 voiceSetting.addEventListener("change", () => {
   writePreference("mavis.voicePlayback", voiceSetting.checked);
 });
 motionSetting.addEventListener("change", () => {
-  document.body.classList.toggle("reduce-motion", motionSetting.checked);
+  syncOrbMotionPreference();
   writePreference("mavis.reduceMotion", motionSetting.checked);
 });
+if (typeof systemMotionPreference.addEventListener === "function") {
+  systemMotionPreference.addEventListener("change", syncOrbMotionPreference);
+}

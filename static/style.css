@@ -96,87 +96,194 @@ p { line-height: 1.55; }
 .mavis-tagline { color: #d8e8fb; font-size: 1.15rem; margin: 10px 0 0; }
 .mavis-subtagline { margin: 2px 0 0; color: #93b2cd; font-size: .95rem; }
 .orb-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px 0 0; }
+/* A glass shell surrounds (but does not obscure) the flowing energy. */
 .mavis-orb {
   position: relative;
   display: block;
   width: clamp(210px, 27vw, 292px);
   aspect-ratio: 1;
   padding: 0;
-  border-radius: 50%;
-  border: 1px solid #71cfff7a;
-  isolation: isolate;
   overflow: visible;
-  background: radial-gradient(circle at 28% 23%, #bbf3ff45 0%, transparent 29%),
-    radial-gradient(circle at 65% 70%, #1c6cad7c 2%, transparent 58%),
-    radial-gradient(circle at 40% 38%, #124d82 0%, #0b2b61 47%, #061532 76%, #030b21 100%);
-  box-shadow: inset -20px -24px 45px #020823b0, inset 12px 13px 29px #b5efff4d,
-    0 0 35px #2276f566, 0 0 85px #315acf20;
-  animation: orb-float 5.5s ease-in-out infinite;
-  transition: box-shadow 1s ease-in-out, filter 1s ease-in-out;
+  isolation: isolate;
+  border: 1px solid rgba(131, 222, 255, .46);
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 29% 22%, rgba(215, 248, 255, .18), transparent 32%),
+    radial-gradient(ellipse at 58% 63%, rgba(28, 104, 179, .34), transparent 59%),
+    radial-gradient(circle at 45% 42%, #184a80 0%, #0a2b60 42%, #071932 73%, #020b20 100%);
+  box-shadow:
+    inset -22px -25px 48px rgba(1, 9, 27, .92),
+    inset 13px 16px 34px rgba(151, 225, 255, .28),
+    0 0 1px 2px rgba(71, 157, 227, .22),
+    0 0 42px rgba(44, 135, 249, .29),
+    0 0 88px rgba(44, 101, 223, .13);
+  animation: orb-float 5.8s ease-in-out infinite;
+  transition: box-shadow 1.25s ease-in-out, filter .65s ease-in-out;
 }
-.mavis-orb:hover { filter: brightness(1.1); }
+.mavis-orb:hover { filter: brightness(1.07); }
+.mavis-orb:active { filter: brightness(1.15); }
+
+.orb-core {
+  position: absolute;
+  inset: 14%;
+  z-index: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 42% 42%, rgba(121, 214, 255, .25), transparent 46%),
+    conic-gradient(from 35deg, rgba(37, 121, 248, .14), rgba(69, 203, 255, .33), rgba(61, 57, 180, .16), rgba(50, 172, 238, .23), rgba(37, 121, 248, .14));
+  filter: blur(13px);
+  animation: orb-energy 13s linear infinite;
+}
+
+/* Separate translucent light layers crossfade between voice states. */
+.orb-state-glow {
+  position: absolute;
+  inset: 6%;
+  z-index: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.25s ease-in-out;
+}
+.orb-state-glow--listening {
+  background:
+    radial-gradient(ellipse at 33% 27%, rgba(173, 255, 250, .47), transparent 38%),
+    radial-gradient(circle at 57% 62%, rgba(21, 207, 204, .52), transparent 77%);
+}
+.orb-state-glow--thinking {
+  background:
+    radial-gradient(ellipse at 31% 27%, rgba(218, 169, 255, .48), transparent 38%),
+    radial-gradient(circle at 57% 62%, rgba(139, 67, 238, .54), transparent 77%);
+}
+.orb-state-glow--speaking {
+  background:
+    radial-gradient(ellipse at 32% 26%, rgba(219, 250, 255, .53), transparent 40%),
+    radial-gradient(circle at 55% 60%, rgba(26, 129, 255, .59), transparent 78%);
+}
+.mavis-orb[data-state="listening"] .orb-state-glow--listening,
+.mavis-orb[data-state="thinking"] .orb-state-glow--thinking,
+.mavis-orb[data-state="speaking"] .orb-state-glow--speaking { opacity: 1; }
+
+/* Four gently drifting strands: translucent bloom plus fine luminous center. */
+.orb-filaments {
+  position: absolute;
+  inset: 10%;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: 50%;
+  overflow: hidden;
+  filter: drop-shadow(0 0 6px rgba(95, 211, 255, .56)) hue-rotate(0deg);
+  transition: filter 1.25s ease-in-out;
+}
+.orb-energy-svg { display: block; width: 100%; height: 100%; overflow: hidden; }
+.energy-strand { transform-box: fill-box; transform-origin: center; }
+.energy-strand path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.strand-halo { stroke-width: 12; opacity: .43; filter: blur(5.5px); }
+.strand-base { stroke-width: 2.7; opacity: .84; }
+.strand-spark { stroke-width: 2.4; opacity: .91; stroke-dasharray: 37 403; }
+.energy-strand--rear { opacity: .36; animation: energy-weave-rear 9s ease-in-out infinite; }
+.energy-strand--rear .strand-base { stroke-width: 1.5; }
+.energy-strand--primary { animation: energy-weave-primary 7.6s ease-in-out infinite; }
+.energy-strand--secondary { animation: energy-weave-secondary 9.8s ease-in-out infinite; }
+.energy-strand--fine { opacity: .58; animation: energy-weave-fine 8.8s ease-in-out infinite; }
+.energy-strand--fine .strand-base { stroke-width: 1.7; }
+
+@keyframes energy-weave-primary {
+  0%, 100% { transform: translate(-2px, 2px) rotate(-2deg); }
+  50% { transform: translate(3px, -4px) rotate(2deg); }
+}
+@keyframes energy-weave-secondary {
+  0%, 100% { transform: translate(2px, -2px) rotate(2deg); }
+  50% { transform: translate(-3px, 4px) rotate(-2deg); }
+}
+@keyframes energy-weave-rear {
+  0%, 100% { transform: translate(-2px, 1px) rotate(-3deg); }
+  50% { transform: translate(3px, -2px) rotate(3deg); }
+}
+@keyframes energy-weave-fine {
+  0%, 100% { transform: translate(1px, 3px); }
+  50% { transform: translate(-3px, -4px); }
+}
+
+/* Rim lighting and refraction give the sphere a glass-like boundary. */
+.orb-glass-shell {
+  position: absolute;
+  inset: 2.5%;
+  z-index: 3;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 26% 16%, rgba(228, 250, 255, .22), transparent 38%),
+    radial-gradient(ellipse at 80% 82%, rgba(14, 39, 89, .39), transparent 54%);
+  box-shadow:
+    inset 9px 10px 17px rgba(207, 246, 255, .14),
+    inset -15px -16px 23px rgba(0, 11, 37, .56);
+}
+.orb-glass-rim {
+  position: absolute;
+  inset: 1.8%;
+  z-index: 4;
+  border-radius: 50%;
+  border: 1px solid rgba(185, 238, 255, .34);
+  pointer-events: none;
+  box-shadow:
+    inset 4px 3px 7px rgba(183, 236, 255, .31),
+    inset -6px -7px 12px rgba(0, 8, 27, .72),
+    0 0 10px rgba(121, 208, 255, .18);
+}
 .mavis-orb::before {
   content: "";
   position: absolute;
-  z-index: 3;
-  inset: 2%;
+  inset: 9% 27% 66% 9%;
+  z-index: 5;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(ellipse at 27% 17%, #e5f8ff3d 0%, #d6f4ff11 21%, transparent 52%);
-  box-shadow: inset 4px 4px 10px #b9edff66, inset -12px -18px 26px #000d2b99;
+  background: radial-gradient(ellipse at 40% 40%, rgba(247, 255, 255, .32), rgba(215, 249, 255, .12) 39%, transparent 77%);
+  filter: blur(5px);
+  transform: rotate(-23deg);
 }
 .mavis-orb::after {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: 5%;
+  z-index: 5;
   border-radius: 50%;
-  background: radial-gradient(circle at 39% 30%, #bdfbff66, transparent 35%),
-    radial-gradient(circle at 51% 58%, #13cbda88, #094e8d44 68%, transparent 100%);
-  box-shadow: inset 0 0 28px #77ffef33;
-  opacity: 0;
+  border-top: 1px solid rgba(221, 251, 255, .27);
+  border-left: 1px solid rgba(213, 247, 255, .15);
   pointer-events: none;
-  transition: opacity 1s ease-in-out;
+  background: radial-gradient(ellipse at 30% 18%, rgba(235, 255, 255, .11), transparent 40%);
 }
-.orb-core {
-  position: absolute;
-  inset: 13%;
-  border-radius: 50%;
-  background: conic-gradient(from 36deg, #3484ff44, #86f7ff66, #3a39ce44, #56d9ff66, #3484ff44);
-  filter: blur(15px);
-  opacity: .47;
-  animation: orb-energy 10s linear infinite;
-}
-.orb-filaments {
-  position: absolute;
-  z-index: 2;
-  inset: 25% 9%;
-  pointer-events: none;
-  filter: drop-shadow(0 0 9px #46cfff);
-}
-.orb-filaments svg { overflow: visible; }
-.orb-filaments svg path:nth-of-type(2) { animation: filament-flow 4s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
 .orb-glow {
   position: absolute;
   inset: -13%;
   z-index: -1;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle, #3b9efc5b 1%, #253da329 43%, transparent 73%);
-  filter: blur(20px);
-  animation: orb-breathe 4s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(52, 143, 254, .39), rgba(31, 59, 158, .18) 47%, transparent 74%);
+  filter: blur(24px);
+  animation: orb-breathe 4.5s ease-in-out infinite;
 }
-.mavis-orb[data-state="listening"]::after { opacity: 1; }
-.mavis-orb[data-state="listening"] { box-shadow: inset 0 0 32px #31d9e544, 0 0 55px #21d4dd88, 0 0 95px #2bcbca44; }
-.mavis-orb[data-state="thinking"]::after { opacity: .7; background: radial-gradient(circle at 35% 29%, #e4b9ff66, transparent 35%), radial-gradient(circle at 55% 58%, #9947ef88, #2e175b55 70%, transparent 100%); }
-.mavis-orb[data-state="thinking"] { box-shadow: inset 0 0 35px #a76cff66, 0 0 55px #9346ec88, 0 0 100px #502bd744; }
-.mavis-orb[data-state="speaking"]::after { opacity: .8; background: radial-gradient(circle at 35% 29%, #e3faff77, transparent 37%), radial-gradient(circle at 55% 59%, #1a8aff99, #094ac855 68%, transparent 100%); }
-.mavis-orb[data-state="speaking"] { box-shadow: inset 0 0 35px #7ad5ff55, 0 0 55px #197ff3aa, 0 0 95px #258afe44; }
+
+/* Shell remains visible and the glow changes smoothly without gradient jumps. */
+.mavis-orb[data-state="listening"] {
+  box-shadow: inset -17px -21px 38px rgba(2, 28, 40, .76), inset 12px 12px 28px rgba(144, 255, 249, .35), 0 0 48px rgba(24, 221, 204, .54), 0 0 93px rgba(27, 169, 199, .29);
+}
+.mavis-orb[data-state="thinking"] {
+  box-shadow: inset -17px -22px 42px rgba(19, 7, 49, .81), inset 12px 12px 28px rgba(226, 181, 255, .31), 0 0 50px rgba(153, 76, 234, .5), 0 0 97px rgba(95, 38, 188, .3);
+}
+.mavis-orb[data-state="speaking"] {
+  box-shadow: inset -16px -22px 39px rgba(4, 22, 61, .76), inset 12px 12px 27px rgba(208, 247, 255, .35), 0 0 51px rgba(45, 149, 255, .62), 0 0 99px rgba(40, 92, 238, .31);
+}
+.mavis-orb[data-state="listening"] .orb-filaments { filter: drop-shadow(0 0 7px rgba(79, 249, 237, .68)) hue-rotate(-22deg); }
+.mavis-orb[data-state="thinking"] .orb-filaments { filter: drop-shadow(0 0 8px rgba(189, 119, 255, .61)) hue-rotate(67deg); }
+.mavis-orb[data-state="speaking"] .orb-filaments { filter: drop-shadow(0 0 10px rgba(103, 192, 255, .86)) hue-rotate(0deg); }
+
 .orb-label { font-size: .7rem; font-weight: 750; letter-spacing: .36em; color: #9dcdf0; margin: 26px 0 0; }
 .orb-hint { font-size: .88rem; color: #92b8d5; margin: 10px 0 14px; }
-@keyframes orb-float { 0%, 100% {transform: translateY(0)} 50% {transform: translateY(-12px)} }
-@keyframes orb-energy { to {transform: rotate(360deg)} }
-@keyframes orb-breathe { 0%, 100% {transform: scale(.96);opacity:.7} 50% {transform: scale(1.06);opacity:1} }
-@keyframes filament-flow { from {transform: translateY(-5px)} to {transform: translateY(5px)} }
+@keyframes orb-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+@keyframes orb-energy { to { transform: rotate(360deg); } }
+@keyframes orb-breathe { 0%, 100% { transform: scale(.96); opacity: .7; } 50% { transform: scale(1.06); opacity: 1; } }
 
 .voice-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .primary-action, .send-action {
@@ -289,7 +396,10 @@ p { line-height: 1.55; }
 .setting-option input[type="checkbox"] { width: 20px; height: 20px; accent-color: #4dc4ff; flex-shrink: 0; }
 .setting-card p { color: #c1d3e5; font-size: .87rem; }
 .setting-card code { padding: 2px 5px; border-radius: 4px; background: #1c344c; }
-body.reduce-motion .mavis-orb, body.reduce-motion .orb-core, body.reduce-motion .orb-glow,
+body.reduce-motion .mavis-orb,
+body.reduce-motion .orb-core,
+body.reduce-motion .orb-glow,
+body.reduce-motion .energy-strand,
 body.reduce-motion .orb-filaments svg path { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

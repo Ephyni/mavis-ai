@@ -38,79 +38,71 @@
           <p class="mavis-tagline">Make room for what matters.</p>
           <p class="mavis-subtagline">And your day, a little clearer.</p>
           <div class="orb-container hero-orb">
-    <button
-        id="mavis-orb"
-        class="mavis-orb"
-        type="button"
-        data-state="idle"
-        aria-label="Start MAVIS voice command"
-    >
-      <div class="orb-core"></div>
-      
-      <div class="orb-filaments" aria-hidden="true">
-        <svg viewBox="0 0 300 160" width="100%" height="100%">
-          <!-- Primary electric-blue energy current -->
-          
-          <path
-            d="M6 95 C58 18, 105 142, 157 80 S247 22, 294 89"
-            fill="none"
-            stroke="#8defff"
-            stroke-width="7"
-            stroke-linecap="round"
-          >
-            <animate
-              attributeName="d"
-              dur="3.5s"
-              repeatCount="indefinite"
-              values="
-                M6 95 C58 18, 105 142, 157 80 S247 22, 294 89;
-                M6 70 C58 110, 105 35, 157 93 S247 130, 294 65;
-                M6 95 C58 18, 105 142, 157 80 S247 22, 294 89
-              "
-            />
-          </path>
-
-
-          <!-- Secondary intertwining energy current -->
-          <path
-            d="M6 58 C62 139, 111 20, 162 84 S250 142, 294 62"
-            fill="none"
-            stroke="#168fff"
-            stroke-width="5"
-            stroke-linecap="round"
-            opacity="0.85"
-          />
-          
-            <!-- A subtle secondary filament adds depth to the energy flow. -->
-            
-            <path
-              d="M12 78 C58 35, 92 118, 145 68 S235 116, 288 55"
-              fill="none"
-              stroke="#7beaff"
-              stroke-width="2"
-              stroke-linecap="round"
-              opacity="0.7"
+            <button
+              id="mavis-orb"
+              class="mavis-orb"
+              type="button"
+              data-state="idle"
+              aria-label="Start MAVIS voice command"
             >
-              <animate
-                attributeName="d"
-                dur="5.5s"
-                repeatCount="indefinite"
-                values="
-                  M12 78 C58 35, 92 118, 145 68 S235 116, 288 55;
-                  M12 95 C58 108, 92 40, 145 90 S235 44, 288 88;
-                  M12 78 C58 35, 92 118, 145 68 S235 116, 288 55
-                "
-              />
-            </path>
+              <!-- The translucent shell sits above the moving energy inside. -->
+              <span class="orb-core" aria-hidden="true"></span>
+              <span class="orb-state-glow orb-state-glow--listening" aria-hidden="true"></span>
+              <span class="orb-state-glow orb-state-glow--thinking" aria-hidden="true"></span>
+              <span class="orb-state-glow orb-state-glow--speaking" aria-hidden="true"></span>
 
-        </svg>
-      </div>
+              <span class="orb-filaments" aria-hidden="true">
+                <svg class="orb-energy-svg" viewBox="0 0 320 320" width="100%" height="100%" focusable="false">
+                  <defs>
+                    <linearGradient id="mavis-strand-blue" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stop-color="#1472f4" stop-opacity=".25"/>
+                      <stop offset="34%" stop-color="#66c8ff"/>
+                      <stop offset="62%" stop-color="#c1f7ff"/>
+                      <stop offset="100%" stop-color="#3d8bff" stop-opacity=".5"/>
+                    </linearGradient>
+                    <linearGradient id="mavis-strand-cyan" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stop-color="#4bc2ff" stop-opacity=".28"/>
+                      <stop offset="53%" stop-color="#b7faff"/>
+                      <stop offset="100%" stop-color="#428fff" stop-opacity=".5"/>
+                    </linearGradient>
+                  </defs>
 
-        <div class="orb-glow"></div>
-    </button>
+                  <!-- Different strand planes imply depth inside the glass sphere. -->
+                  <g class="energy-strand energy-strand--rear">
+                    <path class="strand-halo" d="M77 123 C114 70 173 76 217 116 S273 185 244 222" stroke="#3679f7"/>
+                    <path class="strand-base" d="M77 123 C114 70 173 76 217 116 S273 185 244 222" stroke="#3c91e9"/>
+                  </g>
 
-    <p class="orb-label">MAVIS</p>
-            </div>
+                  <g class="energy-strand energy-strand--primary">
+                    <path class="strand-halo" d="M39 182 C81 96 122 226 159 152 S234 98 280 159" stroke="#5cc6ff"/>
+                    <path class="strand-base" d="M39 182 C81 96 122 226 159 152 S234 98 280 159" stroke="url(#mavis-strand-blue)"/>
+                    <path class="strand-spark" d="M39 182 C81 96 122 226 159 152 S234 98 280 159" stroke="#d5fbff">
+                      <animate attributeName="stroke-dashoffset" from="0" to="-440" dur="6.8s" repeatCount="indefinite"/>
+                    </path>
+                  </g>
+
+                  <g class="energy-strand energy-strand--secondary">
+                    <path class="strand-halo" d="M48 116 C98 205 135 99 176 164 S244 222 274 123" stroke="#276fff"/>
+                    <path class="strand-base" d="M48 116 C98 205 135 99 176 164 S244 222 274 123" stroke="url(#mavis-strand-cyan)"/>
+                    <path class="strand-spark" d="M48 116 C98 205 135 99 176 164 S244 222 274 123" stroke="#a0f4ff">
+                      <animate attributeName="stroke-dashoffset" from="-270" to="-710" dur="8.4s" repeatCount="indefinite"/>
+                    </path>
+                  </g>
+
+                  <g class="energy-strand energy-strand--fine">
+                    <path class="strand-halo" d="M65 219 C100 152 128 153 161 191 S226 112 255 146" stroke="#61d9ff"/>
+                    <path class="strand-base" d="M65 219 C100 152 128 153 161 191 S226 112 255 146" stroke="#b7f3ff"/>
+                  </g>
+                </svg>
+              </span>
+
+              <span class="orb-glass-shell" aria-hidden="true"></span>
+              <span class="orb-glass-rim" aria-hidden="true"></span>
+              <span class="orb-glow" aria-hidden="true"></span>
+            </button>
+
+            <p class="orb-label">MAVIS</p>
+          </div>
           <p class="orb-hint">Tap the orb and tell me what's on your mind.</p>
           <div class="voice-actions">
             <button type="button" id="record-voice" class="primary-action">🎙 Start voice command</button>
