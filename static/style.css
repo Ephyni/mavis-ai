@@ -1,1 +1,353 @@
-*{box-sizing:border-box}body{margin:0;background:#0c1221;color:#e9effb;font-family:system-ui,sans-serif;color-scheme:dark}header{padding:24px 6%;display:flex;justify-content:space-between;border-bottom:1px solid #29334b}header strong{letter-spacing:.2em;color:#b8c6ff}header span,.footnote{color:#acb9d0}main{max-width:1200px;margin:auto;padding:40px 28px}.eyebrow{letter-spacing:.16em;font-size:.75rem;color:#b7c5ff;font-weight:700}h1{font-size:clamp(2.5rem,5vw,4rem);line-height:1.1;letter-spacing:-.04em}.next{padding:26px;border:1px solid #596ba3;border-radius:20px;background:linear-gradient(120deg,#273361,#1b2540);margin:30px 0}.next h2{font-size:1.3rem;line-height:1.6}.workspace{display:grid;grid-template-columns:300px 1fr;gap:26px}form,.panel{background:#141e31;padding:24px;border:1px solid #2a3650;border-radius:18px}h2{margin-top:0}label{display:block;margin:18px 0;color:#c0cbe0}input,select{width:100%;padding:12px;margin-top:8px;background:#0e1728;color:white;border:1px solid #53617c;border-radius:8px;font:inherit}button{background:#24314d;color:white;padding:10px 14px;border:1px solid #56668a;border-radius:9px;font:inherit;cursor:pointer;margin:3px}button:hover{background:#384a71}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #bdc9ff;outline-offset:3px}.primary,button[aria-pressed=true]{background:#b6c4ff;color:#101a35}.primary{width:100%;font-weight:bold}article{padding:20px 0;border-bottom:1px solid #35415a}article h3{overflow-wrap:anywhere}article p,.footnote{font-size:.9rem;line-height:1.6;color:#b6c2d9}.badge{display:inline-block;padding:4px 9px;border-radius:6px;font-size:.75rem;background:#33445d}.critical{background:#653145;color:#ffdcdf}.high{background:#624b24;color:#ffe3aa}.medium{background:#303e6c;color:#d8e0ff}.low{background:#234d49;color:#c1eee0}button:disabled{opacity:.5}.footnote{margin-top:28px}@media(max-width:760px){.workspace{grid-template-columns:1fr}main{padding:24px 16px}header span{display:none}}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #0c1221;
+  color: #e9effb;
+  font-family: system-ui, sans-serif;
+  color-scheme: dark;
+}
+header {
+  padding: 24px 6%;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #29334b;
+}
+header strong {
+  letter-spacing: 0.2em;
+  color: #b8c6ff;
+}
+header span,
+.footnote {
+  color: #acb9d0;
+}
+main {
+  max-width: 1200px;
+  margin: auto;
+  padding: 40px 28px;
+}
+.eyebrow {
+  letter-spacing: 0.16em;
+  font-size: 0.75rem;
+  color: #b7c5ff;
+  font-weight: 700;
+}
+h1 {
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+.next {
+  padding: 26px;
+  border: 1px solid #596ba3;
+  border-radius: 20px;
+  background: linear-gradient(120deg, #273361, #1b2540);
+  margin: 30px 0;
+}
+.next h2 {
+  font-size: 1.3rem;
+  line-height: 1.6;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 26px;
+}
+form,
+.panel {
+  background: #141e31;
+  padding: 24px;
+  border: 1px solid #2a3650;
+  border-radius: 18px;
+}
+h2 {
+  margin-top: 0;
+}
+label {
+  display: block;
+  margin: 18px 0;
+  color: #c0cbe0;
+}
+input,
+select {
+  width: 100%;
+  padding: 12px;
+  margin-top: 8px;
+  background: #0e1728;
+  color: white;
+  border: 1px solid #53617c;
+  border-radius: 8px;
+  font: inherit;
+}
+button {
+  background: #24314d;
+  color: white;
+  padding: 10px 14px;
+  border: 1px solid #56668a;
+  border-radius: 9px;
+  font: inherit;
+  cursor: pointer;
+  margin: 3px;
+}
+button:hover {
+  background: #384a71;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #bdc9ff;
+  outline-offset: 3px;
+}
+.primary,
+button[aria-pressed="true"] {
+  background: #b6c4ff;
+  color: #101a35;
+}
+.primary {
+  width: 100%;
+  font-weight: bold;
+}
+article {
+  padding: 20px 0;
+  border-bottom: 1px solid #35415a;
+}
+article h3 {
+  overflow-wrap: anywhere;
+}
+article p,
+.footnote {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #b6c2d9;
+}
+.badge {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  background: #33445d;
+}
+.critical {
+  background: #653145;
+  color: #ffdcdf;
+}
+.high {
+  background: #624b24;
+  color: #ffe3aa;
+}
+.medium {
+  background: #303e6c;
+  color: #d8e0ff;
+}
+.low {
+  background: #234d49;
+  color: #c1eee0;
+}
+button:disabled {
+  opacity: 0.5;
+}
+.footnote {
+  margin-top: 28px;
+}
+@media (max-width: 760px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  main {
+    padding: 24px 16px;
+  }
+  header span {
+    display: none;
+  }
+}
+
+/* MAVIS holographic voice orb */
+.orb-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px 28px;
+}
+
+.mavis-orb {
+  position: relative;
+  width: min(260px, 65vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 35% 28%, #b4eaff88, transparent 28%),
+    radial-gradient(circle at 68% 72%, #7150eaaa, transparent 48%),
+    radial-gradient(circle at 45% 45%, #367cdb, #151d55 75%);
+  box-shadow:
+    inset -18px -22px 45px #080c35bb,
+    inset 12px 12px 30px #8edcff55,
+    0 0 45px #4379ff55,
+    0 0 95px #6248db33;
+  /* Preserve floating motion and smoothly blend the orb's glow. */
+animation: orb-float 5s ease-in-out infinite;
+transition: box-shadow 1.2s ease-in-out;
+}
+
+.orb-core {
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 35% 35%, #b9eaff99, transparent 42%),
+    conic-gradient(
+      from 30deg,
+      #4968f966,
+      #9c74ff77,
+      #43c9ff55,
+      #4968f966
+    );
+  filter: blur(18px);
+  animation: orb-energy 9s linear infinite;
+}
+
+.orb-glow {
+  position: absolute;
+  inset: -8%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #4c78ff66,
+    #7652d733 48%,
+    transparent 72%
+  );
+  filter: blur(24px);
+  animation: orb-breathe 4s ease-in-out infinite;
+}
+
+.orb-label {
+  margin-top: 38px;
+  color: #b8c6ff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
+@keyframes orb-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+
+@keyframes orb-energy {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orb-breathe {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mavis-orb,
+  .orb-core,
+  .orb-glow {
+    animation: none;
+  }
+}
+
+/* Smooth color transition when MAVIS starts listening. */
+.mavis-orb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at 35% 28%,
+      #c4ffffaa,
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 65% 70%,
+      #18d8ccaa,
+      transparent 48%
+    ),
+    radial-gradient(
+      circle at 45% 45%,
+      #20c9e0,
+      #075e80 75%
+    );
+  box-shadow:
+    inset -18px -22px 45px #06304cbb,
+    inset 12px 12px 30px #b0ffff66;
+  opacity: 0;
+  transition: opacity 1.2s ease-in-out;
+}
+
+/* Listening state: cyan and teal energy. */
+.mavis-orb[data-state="listening"]::after {
+  opacity: 1;
+}
+
+/* Blend the orb's colors smoothly during thinking and speaking. */
+.mavis-orb[data-state="thinking"]::after {
+    opacity: 0.35;
+}
+
+.mavis-orb[data-state="speaking"]::after {
+    opacity: 0.75;
+}
+
+.mavis-orb[data-state="listening"] {
+  box-shadow:
+    inset -18px -22px 45px #080c35bb,
+    0 0 55px #16cde088,
+    0 0 105px #18d8cc44;
+  transition: box-shadow 1.2s ease-in-out;
+}
+
+/* Purple visual state while MAVIS processes a voice command. */
+.mavis-orb[data-state="thinking"] {
+  background: radial-gradient(
+    circle at 35% 28%,
+    #d6a5ff 0%,
+    #9955ef 30%,
+    #6324b8 65%,
+    #251044 100%
+  );
+  box-shadow:
+    0 0 30px rgba(164, 91, 255, 0.55),
+    0 0 75px rgba(111, 49, 210, 0.35),
+    inset -18px -20px 40px rgba(30, 8, 70, 0.45);
+}
+
+
+/* Electric-blue state while MAVIS speaks. */
+.mavis-orb[data-state="speaking"] {
+  background: radial-gradient(
+    circle at 35% 28%,
+    #d0f4ff 0%,
+    #55c8ff 28%,
+    #1978f5 62%,
+    #102b82 100%
+  );
+  box-shadow:
+    0 0 35px rgba(55, 165, 255, 0.65),
+    0 0 85px rgba(25, 105, 255, 0.4),
+    inset -18px -20px 40px rgba(8, 26, 90, 0.5);
+}

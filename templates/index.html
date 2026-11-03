@@ -1,59 +1,100 @@
 <!doctype html>
 <html lang="en">
-
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>MAVIS · Your day, clearer</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  </head>
 
-<body>
-    <header><strong>MAVIS</strong><span>Your day, a little clearer.</span></header>
+  <body>
+    <header>
+      <strong>MAVIS</strong><span>Your day, a little clearer.</span>
+    </header>
     <main>
-        <p class="eyebrow">ONE THING AT A TIME</p>
-        <h1>Make room for<br>what matters.</h1>
-        <p>A clear view of your tasks, deadlines, and next step.</p>
-        <section class="next">
-            <p class="eyebrow">YOUR NEXT STEP</p>
-            <h2 id="next">Loading your tasks…</h2><button id="speak">Hear my next step</button><button id="stop">Stop
-                audio</button>
-                <button id="record-voice" type="button">
-  🎤 Start voice command
-</button>
+      <p class="eyebrow">ONE THING AT A TIME</p>
+      <h1>Make room for<br />what matters.</h1>
+      <p>A clear view of your tasks, deadlines, and next step.</p>
+      <section class="next">
+        <p class="eyebrow">YOUR NEXT STEP</p>
+        <h2 id="next">Loading your tasks…</h2>
+        <button id="speak">Hear my next step</button
+        ><button id="stop">Stop audio</button>
+<!-- MAVIS interactive holographic voice orb -->
+<div class="orb-container">
+    <button
+        id="mavis-orb"
+        class="mavis-orb"
+        type="button"
+        data-state="idle"
+        aria-label="Start MAVIS voice command"
+    >
+        <div class="orb-core"></div>
+        <div class="orb-glow"></div>
+    </button>
 
-<button id="stop-recording" type="button" disabled>
-  Stop recording
-</button>
+    <p class="orb-label">MAVIS</p>
+</div>
 
-<p id="voice-status" role="status"></p>
+        <button id="record-voice" type="button">🎤 Start voice command</button>
+
+        <button id="stop-recording" type="button" disabled>
+          Stop recording
+        </button>
+
+        <p id="voice-status" role="status"></p>
+      </section>
+      <div class="workspace">
+        <form>
+          <h2>Add a task</h2>
+          <label
+            >What needs doing?<input
+              name="title"
+              required
+              maxlength="500"
+              placeholder="Finish scholarship application"
+          /></label>
+          <label>Deadline<input name="due_date" type="date" /></label
+          ><label
+            >Importance<select name="priority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select></label
+          >
+          <label
+            >Estimated minutes<input
+              name="estimated_minutes"
+              type="number"
+              min="1"
+              max="10080"
+              value="30"
+              required /></label
+          ><button class="primary" type="submit">Add task</button>
+        </form>
+        <section class="panel">
+          <h2>Your tasks</h2>
+          <nav aria-label="Task filters">
+            <button data-filter="open" aria-pressed="true">Open</button
+            ><button data-filter="today" aria-pressed="false">Today</button
+            ><button data-filter="completed" aria-pressed="false">
+              Completed
+            </button>
+          </nav>
+          <p id="status" role="status"></p>
+          <div id="list"></div>
         </section>
-        <div class="workspace">
-            <form>
-                <h2>Add a task</h2><label>What needs doing?<input name="title" required maxlength="500"
-                        placeholder="Finish scholarship application"></label>
-                <label>Deadline<input name="due_date" type="date"></label><label>Importance<select name="priority">
-                        <option value="low">Low</option>
-                        <option value="medium" selected>Medium</option>
-                        <option value="high">High</option>
-                        <option value="critical">Critical</option>
-                    </select></label>
-                <label>Estimated minutes<input name="estimated_minutes" type="number" min="1" max="10080" value="30"
-                        required></label><button class="primary" type="submit">Add task</button>
-            </form>
-            <section class="panel">
-                <h2>Your tasks</h2>
-                <nav aria-label="Task filters"><button data-filter="open" aria-pressed="true">Open</button><button
-                        data-filter="today" aria-pressed="false">Today</button><button data-filter="completed"
-                        aria-pressed="false">Completed</button></nav>
-                <p id="status" role="status"></p>
-                <div id="list"></div>
-            </section>
-        </div>
-        <p class="footnote">Recommendations consider importance and deadlines. You choose what works for your day. Today
-            includes overdue tasks and uses your device’s local date.</p>
+      </div>
+      <p class="footnote">
+        Recommendations consider importance and deadlines. You choose what works
+        for your day. Today includes overdue tasks and uses your device’s local
+        date.
+      </p>
     </main>
     <script src="{{ url_for('static', filename='tasks.js') }}"></script>
-</body>
-
+  </body>
 </html>

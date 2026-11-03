@@ -193,18 +193,32 @@ def save_task(title):
 
     return task_id
 
-def get_tasks():
+
+def get_tasks(completed=None):
+    """Retrieve tasks, optionally filtered by completion status."""
     connection = sqlite3.connect(DATABASE)
     connection.row_factory = sqlite3.Row
 
-    cursor = connection.execute(
-        "SELECT id, title, completed FROM tasks ORDER BY id DESC"
-    )
+    try:
+        if completed is None:
+            cursor = connection.execute(
+                "SELECT id, title, completed FROM tasks ORDER BY id DESC"
+            )
+        else:
+            cursor = connection.execute(
+                """
+                SELECT id, title, completed
+                FROM tasks
+                WHERE completed = ?
+                ORDER BY id DESC
+                """,
+                (int(completed),),
+            )
 
-    tasks = [dict(row) for row in cursor.fetchall()]
-    connection.close()
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        connection.close()
 
-    return tasks
 
 
 def complete_task(task_id):
@@ -241,6 +255,64 @@ def complete_task(task_id):
 
     finally:
         # Release the database connection even if execution fails.
+        connection.close()
+
+
+def delete_task(task_id):
+    """Permanently delete a task and verify its removal from SQLite."""
+    if type(task_id) is not int or task_id <= 0:
+        return False
+
+    connection = sqlite3.connect(DATABASE)
+
+    try:
+        # Target exactly one task using its unique database ID.
+        cursor = connection.execute(
+            "DELETE FROM tasks WHERE id = ?",
+            (task_id,)
+        )
+
+        if cursor.rowcount != 1:
+            connection.rollback()
+            return False
+
+        # Confirm the record is absent before committing the deletion.
+        remaining = connection.execute(
+            "SELECT 1 FROM tasks WHERE id = ?",
+            (task_id,)
+        ).fetchone()
+
+        if remaining is not None:
+            connection.rollback()
+            return False
+
+        connection.commit()
+        return True
+
+    except sqlite3.Error:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+def verify_task_deleted(task_id):
+    """Independently verify that a task is absent from persisted SQLite data."""
+    if type(task_id) is not int or task_id <= 0:
+        return False
+
+    connection = sqlite3.connect(DATABASE)
+
+    try:
+        # Query committed database state independently of the deletion operation.
+        remaining = connection.execute(
+            "SELECT 1 FROM tasks WHERE id = ?",
+            (task_id,)
+        ).fetchone()
+
+        return remaining is None
+
+    finally:
         connection.close()
 
 

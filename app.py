@@ -1,7 +1,7 @@
 
 import re
 import json
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, session
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -16,8 +16,9 @@ from memory import (
     get_tasks as get_saved_tasks,
     save_task,
     execute_verified_task_completion,
+    delete_task as delete_saved_task,
+    verify_task_deleted,
 )
-
 
 from memory import (
     init_db,
@@ -32,6 +33,13 @@ from memory import (
 init_db()
 
 app = Flask(__name__)
+
+# Enable signed sessions for multi-step confirmation workflows.
+load_dotenv()
+app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY")
+
+if not app.config["SECRET_KEY"]:
+    raise RuntimeError("FLASK_SECRET_KEY must be configured.")
 
 import task_service
 task_service.migrate()
@@ -50,9 +58,30 @@ def update_task(task_id):
 
 @app.delete("/api/tasks/<int:task_id>")
 def delete_task(task_id):
-    if not task_service.delete(task_id):
+    """Require explicit confirmation and verify permanent task deletion."""
+    data = request.get_json(silent=True)
+
+    # Reject deletion requests without an explicit confirmation.
+    if not isinstance(data, dict) or data.get("confirm") is not True:
+        return jsonify({
+            "error": "Explicit confirmation is required before deleting a task."
+        }), 400
+
+    # Delete only the task identified by its database ID.
+    if not delete_saved_task(task_id):
         return jsonify({"error": "Task not found."}), 404
-    return jsonify({"status": "deleted"})
+
+    # Verify the persisted database state before reporting success.
+    if not verify_task_deleted(task_id):
+        return jsonify({
+            "error": "Task deletion could not be verified."
+        }), 500
+
+    return jsonify({
+        "status": "deleted",
+        "task_id": task_id,
+        "verified": True
+    })
 
 tasks = []
 
@@ -152,13 +181,94 @@ def reject_memory_proposal(proposal_id):
 
     return jsonify({"status": "rejected"})
 
+
 @app.post("/api/chat")
-def chat():
+def chat(message_override=None):
+    # Allow voice and text commands to share the current request session.
     data = request.get_json(silent=True) or {}
+
+    if message_override is not None:
+        data = {"message": message_override}
+
     message = data.get("message")
+
 
     if not isinstance(message, str) or not message.strip():
         return jsonify({"error": "Message is required"}), 400
+
+
+    # Resolve a pending deletion before classifying a new AI intent.
+    pending_task_id = session.get("pending_delete_task_id")
+
+    if pending_task_id is not None:
+        answer = message.strip().casefold().rstrip(".!?")
+
+        cancel_answers = {
+            "no", "no cancel", "no, cancel",
+            "cancel", "cancel deletion",
+            "don't delete it", "do not delete it"
+        }
+
+        confirm_answers = {
+            "yes", "yes delete it", "yes, delete it",
+            "confirm deletion", "confirm delete",
+            "yes please delete it", "yes, please delete it"
+        }
+
+        if answer in cancel_answers:
+            session.pop("pending_delete_task_id", None)
+
+            return jsonify({
+                "reply": "Okay, deletion cancelled. Your task is safe.",
+                "intent": "delete_task",
+                "cancelled": True
+            })
+
+        if answer in confirm_answers:
+            # Consume the confirmation so it cannot be reused.
+            session.pop("pending_delete_task_id", None)
+
+            if type(pending_task_id) is not int or pending_task_id <= 0:
+                return jsonify({"error": "Invalid pending task."}), 400
+
+            selected_task = next(
+                (
+                    task for task in get_saved_tasks()
+                    if task["id"] == pending_task_id
+                ),
+                None
+            )
+
+            if selected_task is None:
+                return jsonify({
+                    "reply": "That task no longer exists.",
+                    "intent": "delete_task"
+                }), 404
+
+            # Delete the selected record and verify its persisted state.
+            deleted = delete_saved_task(pending_task_id)
+            verified = verify_task_deleted(pending_task_id) if deleted else False
+
+            if not (deleted and verified):
+                return jsonify({
+                    "reply": "I couldn't verify the deletion.",
+                    "intent": "delete_task",
+                    "verified": False
+                }), 500
+
+            return jsonify({
+                "reply": (
+                    f"Permanently deleted '{selected_task['title']}' "
+                    "and verified its removal."
+                ),
+                "intent": "delete_task",
+                "task_id": pending_task_id,
+                "verified": True
+            })
+
+        # An unrelated command cancels the pending confirmation.
+        session.pop("pending_delete_task_id", None)
+
 
     if message.lower().startswith("add task:"):
         title = message.split(":", 1)[1].strip()
@@ -180,13 +290,17 @@ def chat():
         api_key=os.environ["MODEL_API_KEY"]
     )
 
+
     intent_instructions = (
         "Classify the user's message as one of these intents: "
-        "'add_task', 'list_tasks', 'complete_task', 'reminder', or 'chat'. "
+        "'add_task', 'list_tasks', 'complete_task', 'delete_task', "
+        "'reminder', or 'chat'. "
         "Use 'list_tasks' when the user asks to see or hear their tasks. "
+        "Use 'delete_task' when the user asks to delete or remove a task. "
         "Do not perform any actions. "
         "Reply with only the classification."
     )
+
 
     intent_response = client.responses.create(
         model="muse-spark-1.3",
@@ -195,15 +309,28 @@ def chat():
     )
 
     intent = intent_response.output_text.strip().lower()
-    
+
+    # Route explicit task-list requests deterministically.
+    normalized_message = message.casefold()
+
+    if "tasks" in normalized_message and any(
+        phrase in normalized_message
+        for phrase in ("show", "list", "see", "what are", "read")
+    ):
+        intent = "list_tasks"
+
+    # Log the classified intent to diagnose voice-command routing.
+    print("MAVIS intent:", repr(intent))
+
     if intent not in {
-    "add_task",
-    "list_tasks",
-    "complete_task",
-    "reminder",
-    "chat"
-}:
-     intent = "chat"
+        "add_task",
+        "list_tasks",
+        "complete_task",
+        "delete_task",
+        "reminder",
+        "chat",
+    }:
+        intent = "chat"
 
     if intent == "add_task":
         title_response = client.responses.create(
@@ -227,6 +354,25 @@ def chat():
     if intent == "list_tasks":
         saved_tasks = get_saved_tasks()
 
+        print("DEBUG list_tasks count:", len(saved_tasks), flush=True)
+
+        # Filter tasks according to the requested completion status.
+        normalized_message = message.casefold()
+
+        if "completed" in normalized_message or "finished" in normalized_message:
+            saved_tasks = [
+                task for task in saved_tasks
+                if task["completed"] == 1
+            ]
+        elif any(
+            word in normalized_message
+            for word in ("active", "open", "incomplete", "pending")
+        ):
+            saved_tasks = [
+                task for task in saved_tasks
+                if task["completed"] == 0
+            ]
+
         if not saved_tasks:
             return jsonify({
                 "reply": "You don't have any saved tasks yet.",
@@ -234,12 +380,55 @@ def chat():
                 "tasks": []
             })
 
+
         task_titles = [task["title"] for task in saved_tasks]
+
+        # Confirm which tasks are included in the API response.
+        print("DEBUG returning task titles:", task_titles, flush=True)
 
         return jsonify({
             "reply": "Here are your tasks: " + ", ".join(task_titles),
             "intent": intent,
             "tasks": saved_tasks
+        })
+
+
+    if intent == "delete_task":
+        # Identify the target before requesting permanent deletion.
+        saved_tasks = get_saved_tasks()
+        normalized_message = message.casefold()
+
+        matches = [
+            task for task in saved_tasks
+            if task["title"].strip().casefold() in normalized_message
+        ]
+
+        # Never proceed when the task is missing or ambiguous.
+        if len(matches) != 1:
+            return jsonify({
+                "reply": (
+                    "I couldn't identify exactly one task. "
+                    "Please tell me the exact task name."
+                ),
+                "intent": intent,
+                "confirmation_required": False
+            })
+
+        selected_task = matches[0]
+
+        # Remember the selected task until the user confirms or cancels.
+        session["pending_delete_task_id"] = selected_task["id"]
+
+
+        # Ask for confirmation without modifying SQLite.
+        return jsonify({
+            "reply": (
+                f"Are you sure you want to permanently delete "
+                f"'{selected_task['title']}'? This cannot be undone."
+            ),
+            "intent": intent,
+            "confirmation_required": True,
+            "task_id": selected_task["id"]
         })
 
     if intent == "complete_task":
@@ -322,18 +511,30 @@ def chat():
         })
 
     response = client.responses.create(
-    model="muse-spark-1.3",
-    instructions=(
-        "You are MAVIS, a friendly, intelligent AI productivity assistant. "
-        "Help users organize tasks, plan their schedules, and stay productive. "
-        "Be conversational, clear, supportive, and concise. "
-        "Never claim to have created reminders, sent emails, or updated calendars "
-        "unless those actions have actually been completed and verified."
-    ),
-    input=message.strip()
-)
+        model="muse-spark-1.3",
+        instructions=(
+            "You are MAVIS, a friendly, energetic, and curious AI personal assistant. "
+            "Speak naturally, with warmth, confidence, and a positive attitude. "
+            "Be conversational, approachable, and professional without sounding robotic. "
+            "Use proper grammar, punctuation, and natural sentence structure. "
+            "Write responses that sound clear and conversational when spoken aloud. "
+            "Use short, natural sentences and avoid awkward phrasing. "
+            "Keep responses concise, especially for voice interactions. "
+            "Avoid Markdown formatting, unnecessary symbols, and long lists. "
+            "Use a friendly, upbeat tone without excessive enthusiasm. "
+            "Help users organize tasks, plan their day, and stay productive. "
+            "Offer helpful next steps when relevant, without being pushy. "
+            "Preserve important details, including task names, dates, and times. "
+            "Never invent information or claim an action was successful without verification. "
+            "Never claim to have created reminders, sent emails, updated calendars, "
+            "or completed tasks unless those actions have actually been "
+            "completed and verified."
+        ),
+        input=message.strip(),
+    )
 
     return jsonify({"reply": response.output_text})
+
 
 
 def convert_audio_to_wav(input_path, output_path):
@@ -420,12 +621,10 @@ def receive_voice():
                     "error": "No speech was recognized."
                 }), 422
 
-            with app.test_request_context(
-            "/api/chat",
-            method="POST",
-            json={"message": transcript}
-        ):      
-                return chat()
+
+            # Process the spoken command within the original browser session.
+            return chat(transcript)
+
 
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return jsonify({

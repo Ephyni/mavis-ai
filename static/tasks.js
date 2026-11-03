@@ -3,7 +3,7 @@ let tasks = [],
   recommendation = null;
 const status = document.querySelector("#status");
 function node(tag, text) {
-  const n = docuFment.createElement(tag);
+  const n = document.createElement(tag);
   n.textContent = text;
   return n;
 }
@@ -29,6 +29,60 @@ async function load() {
   recommendation = r.recommendation;
   render();
 }
+
+async function speakResponse(text) {
+  // Request synthesized speech without modifying task state.
+  if (typeof text !== "string" || !text.trim()) return;
+
+  // Remove Markdown formatting before speech synthesis.
+  const spokenText = text
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const response = await fetch("/api/tts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: spokenText.slice(0, 300) }),
+  });
+
+
+  if (!response.ok) {
+    throw new Error("Speech generation failed.");
+  }
+
+  // Convert the returned audio into a playable browser URL.
+  const audioBlob = await response.blob();
+  const audioUrl = URL.createObjectURL(audioBlob);
+  const audio = new Audio(audioUrl);
+
+  // Slightly increase speaking pace for a conversational delivery.
+  audio.playbackRate = 1.15;
+
+  // Synchronize the orb with actual audio playback.
+  audio.addEventListener("playing", () => {
+    setOrbState("speaking");
+  });
+
+  // Restore the idle state and release audio resources.
+  const cleanup = () => {
+    setOrbState("idle");
+    URL.revokeObjectURL(audioUrl);
+  };
+
+  audio.addEventListener("ended", cleanup, { once: true });
+  audio.addEventListener("error", cleanup, { once: true });
+
+
+  try {
+    await audio.play();
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+}
+
 function render() {
   document.querySelector("#next").textContent = recommendation
     ? recommendation.title + ": " + recommendation.reason
@@ -139,8 +193,107 @@ const recordButton = document.querySelector("#record-voice");
 const stopButton = document.querySelector("#stop-recording");
 const voiceStatus = document.querySelector("#voice-status");
 
+// Update MAVIS's visual state without changing voice processing.
+const mavisOrb = document.querySelector("#mavis-orb");
+
+function setOrbState(state) {
+  const validStates = ["idle", "listening", "thinking", "speaking"];
+
+  if (!validStates.includes(state) || !mavisOrb) {
+    return;
+  }
+
+  mavisOrb.dataset.state = state;
+  mavisOrb.setAttribute(
+    "aria-label",
+    `MAVIS voice assistant is ${state}`
+  );
+}
+
 let mediaRecorder = null;
 let audioChunks = [];
+
+// Track microphone activity to detect when the user finishes speaking.
+let audioContext = null;
+let audioAnalyser = null;
+let silenceCheckTimer = null;
+let recordingStartedAt = 0;
+let lastSpeechAt = 0;
+let speechDetected = false;
+
+const SILENCE_DURATION_MS = 1500;
+const MAX_RECORDING_MS = 20000;
+const MIN_SPEECH_LEVEL = 0.025;
+
+
+function startSilenceDetection(stream) {
+  // Monitor microphone volume without changing the recorded audio.
+  audioContext = new AudioContext();
+  audioAnalyser = audioContext.createAnalyser();
+  audioAnalyser.fftSize = 2048;
+
+  const source = audioContext.createMediaStreamSource(stream);
+  source.connect(audioAnalyser);
+
+  const samples = new Uint8Array(audioAnalyser.fftSize);
+
+  recordingStartedAt = Date.now();
+  lastSpeechAt = recordingStartedAt;
+  speechDetected = false;
+
+  silenceCheckTimer = setInterval(() => {
+    if (!mediaRecorder || mediaRecorder.state !== "recording") {
+      return;
+    }
+
+    audioAnalyser.getByteTimeDomainData(samples);
+
+    // Calculate the microphone signal's root-mean-square volume.
+    let sumSquares = 0;
+
+    for (const sample of samples) {
+      const normalized = (sample - 128) / 128;
+      sumSquares += normalized * normalized;
+    }
+
+    const volume = Math.sqrt(sumSquares / samples.length);
+    const now = Date.now();
+
+    if (volume > MIN_SPEECH_LEVEL) {
+      speechDetected = true;
+      lastSpeechAt = now;
+    }
+
+    const silenceElapsed = now - lastSpeechAt;
+    const recordingElapsed = now - recordingStartedAt;
+
+    if (
+      (speechDetected && silenceElapsed >= SILENCE_DURATION_MS) ||
+      recordingElapsed >= MAX_RECORDING_MS
+    ) {
+      stopButton.click();
+    }
+  }, 100);
+}
+
+
+function stopSilenceDetection() {
+  // Stop monitoring microphone activity after recording ends.
+  if (silenceCheckTimer !== null) {
+    clearInterval(silenceCheckTimer);
+    silenceCheckTimer = null;
+  }
+
+  // Release the audio analysis resources.
+  if (audioContext) {
+    const context = audioContext;
+    audioContext = null;
+    audioAnalyser = null;
+    void context.close();
+  }
+
+  speechDetected = false;
+}
 
 // Start microphone capture when the user initiates a voice command.
 recordButton.onclick = async () => {
@@ -152,6 +305,11 @@ recordButton.onclick = async () => {
     audioChunks = [];
     mediaRecorder = new MediaRecorder(stream);
 
+  // Change the orb to listening when recording begins.
+  mediaRecorder.addEventListener("start", () => {
+    setOrbState("listening");
+  });
+
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
         audioChunks.push(event.data);
@@ -159,6 +317,9 @@ recordButton.onclick = async () => {
     };
 
     mediaRecorder.start();
+
+    // Automatically detect when the user finishes speaking.
+    startSilenceDetection(stream);
 
     recordButton.disabled = true;
     stopButton.disabled = false;
@@ -176,8 +337,14 @@ stopButton.onclick = () => {
     return;
   }
 
+// Stop monitoring microphone activity before processing the command.
+stopSilenceDetection();
+
   stopButton.disabled = true;
   voiceStatus.textContent = "Processing your voice command...";
+
+  // Show the thinking state while MAVIS processes the voice command.
+  setOrbState("thinking");
 
   mediaRecorder.onstop = async () => {
     // Release the microphone after recording.
@@ -202,10 +369,20 @@ stopButton.onclick = () => {
         throw new Error(result.error || "Voice command failed.");
       }
 
-      voiceStatus.textContent = "Voice command processed successfully.";
+voiceStatus.textContent = result.reply || "Voice command processed successfully.";
 
-      // Refresh tasks to display any changes made by MAVIS.
-      await load();
+// Refresh tasks to display any changes made by MAVIS.
+await load();
+
+// Speak the response returned by the conversational backend.
+if (typeof result.reply === "string" && result.reply.trim()) {
+  try {
+    await speakResponse(result.reply);
+  } catch (speechError) {
+    console.error("MAVIS speech playback failed:", speechError);
+  }
+}
+
     } catch (error) {
       voiceStatus.textContent = error.message;
       console.error(error);
@@ -216,3 +393,10 @@ stopButton.onclick = () => {
 
   mediaRecorder.stop();
 };
+
+// Start a voice command when the user clicks the orb.
+mavisOrb.addEventListener("click", () => {
+  if (!recordButton.disabled) {
+    recordButton.click();
+  }
+});
