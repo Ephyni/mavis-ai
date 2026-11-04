@@ -215,22 +215,37 @@ def mark_reminder_notified(reminder_id):
         connection.close()
 
     
-def save_memory(content, category="general"):
-    connection = sqlite3.connect(DATABASE)
-
-    cursor = connection.execute(
+def log_memory_saved(connection, memory_id, content):
+    """Record a verified memory save in the caller's transaction."""
+    connection.execute(
         """
-        INSERT INTO memories (content, category)
-        VALUES (?, ?)
+        INSERT INTO task_activity (task_id, title, action, entity_type)
+        VALUES (?, ?, 'created', 'memory')
         """,
-        (content, category)
+        (memory_id, content),
     )
 
-    connection.commit()
-    memory_id = cursor.lastrowid
-    connection.close()
 
-    return memory_id
+def save_memory(content, category="general"):
+    connection = sqlite3.connect(DATABASE)
+    try:
+        cursor = connection.execute(
+            """
+            INSERT INTO memories (content, category)
+            VALUES (?, ?)
+            """,
+            (content, category),
+        )
+        memory_id = cursor.lastrowid
+        # Only record the save when the memory and event can both commit.
+        log_memory_saved(connection, memory_id, content)
+        connection.commit()
+        return memory_id
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 def get_memories():
@@ -383,6 +398,8 @@ def approve_memory(proposal_id):
             """,
             (proposal_id,)
         )
+        # Proposed memories become saved only after approval; log once.
+        log_memory_saved(connection, memory_id, proposal[0])
 
         connection.commit()
         return memory_id

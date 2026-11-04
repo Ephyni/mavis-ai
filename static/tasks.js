@@ -528,12 +528,13 @@ function renderHomeSummary() {
   for (const event of taskActivity.slice(0, 2)) {
     const item = node("div", "");
     item.className = "activity-entry";
-    const memoryDeleted =
-      event.entity_type === "memory" && event.action === "deleted";
+    const memoryEvent = event.entity_type === "memory";
+    const activityLabel = memoryEvent
+      ? (event.action === "created" ? "Saved memory"
+        : event.action === "deleted" ? "Deleted memory" : "Memory activity")
+      : (activityLabels[event.action] || "Task activity");
     item.append(
-      node("strong", memoryDeleted
-        ? "Deleted memory"
-        : activityLabels[event.action] || "Task activity"),
+      node("strong", activityLabel),
       node("span", event.title),
     );
     recent.append(item);
@@ -638,6 +639,9 @@ async function loadMavisMemories() {
           try {
             await api("/api/memory-proposals/" + proposal.id + "/" + action, "POST");
             await loadMavisMemories();
+            if (action === "approve") {
+              await load(); // Show the approved memory in Recent Activity.
+            }
           } catch (error) {
             fetchStatus.textContent = error.message;
             approve.disabled = false;
@@ -666,6 +670,7 @@ document.querySelector("#memory-form").addEventListener("submit", async (event) 
     form.reset();
     memoryStatus.textContent = "Memory saved.";
     await loadMavisMemories();
+    await load(); // Refresh Home's activity list after a direct save.
   } catch (error) {
     memoryStatus.textContent = error.message;
   } finally {
