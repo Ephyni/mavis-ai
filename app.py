@@ -41,6 +41,7 @@ from memory import (
 
 from reminder_speech import format_spoken_reminder
 from memory_commands import extract_memory_fact, makes_unverified_memory_claim
+from action_flow import clear_pending, confirmation_answer
 
 init_db()
 
@@ -259,6 +260,13 @@ def _saved_memory_matches(subject, available):
             set(_task_words(item["content"])) - _MEMORY_FILLERS
         )
     ]
+    if not candidates and len(wanted) >= 2:
+        # Small transcript differences are allowed only for one unique match.
+        for item in available:
+            tokens = set(_task_words(item["content"])) - _MEMORY_FILLERS
+            overlap = len(wanted & tokens)
+            if overlap >= 2 and overlap / len(wanted) >= 0.7:
+                candidates.append(item)
     return (candidates[0] if len(candidates) == 1 else None), candidates
 
 
@@ -513,6 +521,23 @@ def chat(message_override=None):
         return jsonify({"error": "Message is required"}), 400
 
 
+    # A new explicit command replaces, rather than inherits, an older action.
+    new_action = (
+        _memory_deletion_subject(message) is not None
+        or extract_memory_fact(message) is not None
+        or _explicit_task_intent(message) is not None
+        or message.strip().casefold().startswith((
+            "add task:", "mavis add", "mavis, add",
+            "remind me", "mavis remind me", "mavis, remind me",
+            "set a reminder",
+        ))
+    )
+    if new_action:
+        old_proposal = session.get("pending_memory_proposal_id")
+        if type(old_proposal) is int:
+            reject_memory(old_proposal)
+        clear_pending(session)
+
     # Resolve a pending deletion before classifying a new AI intent.
     pending_task_id = session.get("pending_delete_task_id")
 
@@ -531,7 +556,7 @@ def chat(message_override=None):
             "yes please delete it", "yes, please delete it"
         }
 
-        if answer in cancel_answers:
+        if answer in cancel_answers or confirmation_answer(message) == "no":
             session.pop("pending_delete_task_id", None)
 
             return jsonify({
@@ -540,7 +565,7 @@ def chat(message_override=None):
                 "cancelled": True
             })
 
-        if answer in confirm_answers:
+        if answer in confirm_answers or confirmation_answer(message) == "yes":
             # Consume the confirmation so it cannot be reused.
             session.pop("pending_delete_task_id", None)
 
@@ -582,8 +607,11 @@ def chat(message_override=None):
                 "verified": True
             })
 
-        # An unrelated command cancels the pending confirmation.
-        session.pop("pending_delete_task_id", None)
+        return jsonify({
+            "reply": "Please confirm that task deletion with yes or no.",
+            "intent": "delete_task",
+            "confirmation_required": True,
+        })
 
 
     # Handle voice and text deletion of already-approved memories before
@@ -600,7 +628,7 @@ def chat(message_override=None):
         "nevermind", "don't delete it", "do not delete it",
     }
     if pending_delete_memory is not None:
-        if memory_answer in accept_delete:
+        if memory_answer in accept_delete or confirmation_answer(message) == "yes":
             session.pop("pending_delete_memory_id", None)
             if type(pending_delete_memory) is not int:
                 return jsonify({"error": "Invalid saved-memory selection."}), 400
@@ -617,27 +645,42 @@ def chat(message_override=None):
                 "memory_id": pending_delete_memory,
                 "verified": True,
             })
-        session.pop("pending_delete_memory_id", None)
-        if memory_answer in reject_delete:
+        if memory_answer in reject_delete or confirmation_answer(message) == "no":
+            session.pop("pending_delete_memory_id", None)
             return jsonify({
                 "reply": "Okay, I kept that memory.",
                 "intent": "delete_memory", "cancelled": True,
             })
 
+        return jsonify({
+            "reply": "Please confirm that memory deletion with yes or no.",
+            "intent": "delete_memory",
+            "confirmation_required": True,
+        })
+
     # A follow-up can select one of the saved memories MAVIS just offered.
-    pending_options = session.pop("pending_memory_delete_options", [])
-    if pending_options:
-        if memory_answer in reject_delete:
+    pending_options = session.get("pending_memory_delete_options", [])
+    if session.get("pending_memory_selection") or pending_options:
+        if memory_answer in reject_delete or confirmation_answer(message) == "no":
+            session.pop("pending_memory_selection", None)
+            session.pop("pending_memory_delete_options", None)
             return jsonify({
                 "reply": "Okay, I kept those memories.",
                 "intent": "delete_memory", "cancelled": True,
             })
         stored_memories = get_memories()
-        choices = [
-            next((item for item in stored_memories if item["id"] == option), None)
-            for option in pending_options[:4]
-        ]
+        choices = (
+            [next((item for item in stored_memories if item["id"] == option), None)
+             for option in pending_options[:4]]
+            if pending_options else stored_memories
+        )
         choices = [item for item in choices if item is not None]
+        if confirmation_answer(message) == "yes":
+            return jsonify({
+                "reply": "Please identify the saved memory by name.",
+                "intent": "delete_memory",
+                "confirmation_required": False,
+            })
         order = {
             "first": 0, "the first one": 0,
             "second": 1, "the second one": 1,
@@ -655,25 +698,28 @@ def chat(message_override=None):
             if selected is None and matches:
                 choices = matches
         if selected is not None:
+            session.pop("pending_memory_selection", None)
+            session.pop("pending_memory_delete_options", None)
             session["pending_delete_memory_id"] = selected["id"]
             return jsonify({
                 "reply": _memory_delete_question([selected]),
                 "intent": "delete_memory", "confirmation_required": True,
             })
-        if choices:
-            session["pending_memory_delete_options"] = [
-                item["id"] for item in choices[:4]
-            ]
-            return jsonify({
-                "reply": _memory_delete_question(choices),
-                "intent": "delete_memory", "confirmation_required": False,
-            })
+        session["pending_memory_selection"] = True
+        session["pending_memory_delete_options"] = (
+            [item["id"] for item in choices[:4]] if pending_options else []
+        )
+        return jsonify({
+            "reply": _memory_delete_question(choices if pending_options else []),
+            "intent": "delete_memory", "confirmation_required": False,
+        })
 
     forget_subject = _memory_deletion_subject(message)
     if forget_subject is not None:
         session.pop("pending_task_selection", None)
         session.pop("pending_task_options", None)
         if not forget_subject:
+            session["pending_memory_selection"] = True
             return jsonify({
                 "reply": (
                     "Which saved memory should I forget? "
@@ -685,10 +731,10 @@ def chat(message_override=None):
             forget_subject, get_memories()
         )
         if selected is None:
-            if len(matches) > 1:
-                session["pending_memory_delete_options"] = [
-                    item["id"] for item in matches[:4]
-                ]
+            session["pending_memory_selection"] = True
+            session["pending_memory_delete_options"] = [
+                item["id"] for item in matches[:4]
+            ]
             return jsonify({
                 "reply": _memory_delete_question(matches),
                 "intent": "delete_memory", "confirmation_required": False,
@@ -718,7 +764,7 @@ def chat(message_override=None):
             "no, don't save it", "no don't save it", "reject",
         }
 
-        if memory_answer in accept_memory:
+        if memory_answer in accept_memory or confirmation_answer(message) == "yes":
             # Consume this confirmation once to prevent a repeated "yes" saving twice.
             session.pop("pending_memory_proposal_id", None)
             proposal = next(
@@ -754,10 +800,10 @@ def chat(message_override=None):
                 "verified": True,
             })
 
-        # A refusal rejects the proposal; a new command cancels it safely.
-        session.pop("pending_memory_proposal_id", None)
-        rejected = reject_memory(pending_memory_id)
-        if memory_answer in decline_memory:
+        # Keep an unrecognized reply pending until yes, no, or a new action.
+        if memory_answer in decline_memory or confirmation_answer(message) == "no":
+            session.pop("pending_memory_proposal_id", None)
+            rejected = reject_memory(pending_memory_id)
             return jsonify({
                 "reply": (
                     "Okay, I won't save that memory."
@@ -766,6 +812,12 @@ def chat(message_override=None):
                 "intent": "save_memory",
                 "cancelled": rejected,
             })
+
+        return jsonify({
+            "reply": "Would you like me to save that memory? Please say yes or no.",
+            "intent": "save_memory",
+            "pending_approval": True,
+        })
 
     if memory_fact is not None:
         fact = memory_fact
@@ -806,8 +858,8 @@ def chat(message_override=None):
 
     # Remember requests that need a task name. A subsequent title or task
     # number can resolve the action without requiring the verb again.
-    pending_selection = session.pop("pending_task_selection", None)
-    option_ids = session.pop("pending_task_options", [])
+    pending_selection = session.get("pending_task_selection")
+    option_ids = session.get("pending_task_options", [])
     follow_up_task_intent = None
     follow_up_task_id = None
     if pending_selection in {"complete_task", "delete_task"}:
@@ -841,6 +893,8 @@ def chat(message_override=None):
                 chosen, _ = _task_matches(message, options)
             if chosen is not None:
                 follow_up_task_id = chosen["id"]
+                session.pop("pending_task_selection", None)
+                session.pop("pending_task_options", None)
 
     if message.lower().startswith("add task:"):
         title = message.split(":", 1)[1].strip()

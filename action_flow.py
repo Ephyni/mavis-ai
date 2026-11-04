@@ -5,7 +5,7 @@ import re
 LEGACY_KEYS = (
     "pending_delete_task_id", "pending_delete_memory_id",
     "pending_memory_proposal_id", "pending_memory_delete_options",
-    "pending_task_selection", "pending_task_options",
+    "pending_task_selection", "pending_task_options", "pending_memory_selection",
 )
 KINDS = {"save_memory", "delete_memory", "complete_task", "delete_task"}
 
