@@ -146,7 +146,10 @@ def _task_matches(message, available_tasks):
                       if task["id"] == int(number.group(1))), None)
         return found, [found] if found else []
 
-    query = [word for word in _task_words(message)
+    # Normalize the contraction before dropping command words. Otherwise
+    # "I'm done with Python" introduces an unmatched "m" token.
+    normalized_message = re.sub(r"\bi['’]m\b", "i am", message, flags=re.I)
+    query = [word for word in _task_words(normalized_message)
              if word not in _TASK_COMMAND_WORDS]
     if not query:
         return None, []

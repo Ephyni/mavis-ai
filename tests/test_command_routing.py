@@ -46,8 +46,19 @@ class CommandRoutingTests(unittest.TestCase):
                  {"id": 2, "title": "Python assignment", "completed": 0}]
         selected, _ = helpers["_task_matches"]("I finished buying bananas", tasks)
         self.assertEqual(selected["id"], 1)
-        selected, _ = helpers["_task_matches"]("I'm done with my Python assignment", tasks)
-        self.assertEqual(selected["id"], 2)
+        for phrase in (
+            "I'm done with my Python assignment",
+            "I’m done with my Python assignment",
+            "I am done with my Python assignment",
+        ):
+            with self.subTest(phrase=phrase):
+                selected, _ = helpers["_task_matches"](phrase, tasks)
+                self.assertEqual(selected["id"], 2)
+        selected, matches = helpers["_task_matches"](
+            "I'm done with my Python exercise", tasks
+        )
+        self.assertIsNone(selected)
+        self.assertEqual(matches, [])
         selected, matches = helpers["_task_matches"](
             "Complete my Python assignment", tasks + [dict(tasks[1], id=3)])
         self.assertIsNone(selected)
