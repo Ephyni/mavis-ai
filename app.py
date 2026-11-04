@@ -731,6 +731,25 @@ def chat(message_override=None):
             forget_subject, get_memories()
         )
         if selected is None:
+            if not matches:
+                past_memories = [
+                    {"id": event["id"], "content": event["title"]}
+                    for event in get_task_activity(limit=20)
+                    if event["action"] == "deleted"
+                    and event["entity_type"] == "memory"
+                ]
+                previous, _ = _saved_memory_matches(
+                    forget_subject, past_memories
+                )
+                if previous is not None:
+                    return jsonify({
+                        "reply": (
+                            f"That memory was already deleted: "
+                            f"'{previous['content']}'."
+                        ),
+                        "intent": "delete_memory",
+                        "verified": False,
+                    })
             session["pending_memory_selection"] = True
             session["pending_memory_delete_options"] = [
                 item["id"] for item in matches[:4]
@@ -1240,6 +1259,20 @@ def chat(message_override=None):
         else:
             selected_task, matches = _task_matches(message, saved_tasks)
         if selected_task is None:
+            if not matches:
+                prior_deletions = [
+                    {"id": event["task_id"], "title": event["title"]}
+                    for event in get_task_activity(limit=20)
+                    if event["action"] == "deleted"
+                    and event["entity_type"] == "task"
+                ]
+                prior, _ = _task_matches(message, prior_deletions)
+                if prior is not None:
+                    return jsonify({
+                        "reply": f"Task '{prior['title']}' was already deleted.",
+                        "intent": "delete_task",
+                        "verified": False,
+                    })
             session["pending_task_selection"] = "delete_task"
             session["pending_task_options"] = [task["id"] for task in matches[:4]]
             return jsonify({
@@ -1277,6 +1310,17 @@ def chat(message_override=None):
                 matches = [selected] if selected else []
             else:
                 selected, matches = _task_matches(message, incomplete_tasks)
+            if selected is None and not matches:
+                finished = [task for task in saved_tasks if task["completed"] == 1]
+                completed_before, _ = _task_matches(message, finished)
+                if completed_before is not None:
+                    return jsonify({
+                        "reply": (
+                            f"Task '{completed_before['title']}' is already completed."
+                        ),
+                        "intent": "complete_task",
+                        "verified": False,
+                    })
             if selected is None:
                 session["pending_task_selection"] = "complete_task"
                 session["pending_task_options"] = [task["id"] for task in matches[:4]]
