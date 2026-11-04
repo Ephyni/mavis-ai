@@ -477,9 +477,9 @@ These are future possibilities, **not features claimed to be implemented in this
 
 ## 14. Three-Minute Demonstration
 
-**Demo video (2 minutes 46 seconds):** [Watch the MAVIS demo](MAVIS-demo.mp4)
+**Demo video (2 minutes 46 seconds):** [Download and watch the MAVIS demo (MP4)](https://github.com/Ephyni/mavis-ai/raw/refs/heads/main/MAVIS-demo.mp4?download=1)
 
-[Download the demo video (MP4)](https://github.com/Ephyni/mavis-ai/raw/refs/heads/main/MAVIS-demo.mp4?download=1)
+Download the MP4 and open it in your video player. GitHub's repository file preview does not play this video.
 
 The demonstration shows creating a task by voice, preserving it after a page refresh, and marking it complete with database verification, followed by a brief explanation of the architecture.
 
