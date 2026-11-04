@@ -80,18 +80,22 @@ def _explicit_task_intent(message):
         and re.search(r"\b(?:tasks?|to[- ]?dos?)\b", command)
     ):
         return "list_tasks"
-    if re.match(r"^(?:delete|remove|erase)\b", command):
+    if re.match(r"^(?:delete|remove|erase|discard|get rid of|throw away)\b", command):
         return "delete_task"
-    if re.match(r"^(?:complete|finish|check off|tick off)\b", command):
+    if re.match(r"^(?:complete|finish|check off|tick off|cross off)\b", command):
         return "complete_task"
     if (
         re.match(r"^(?:mark|set)\b", command)
         and re.search(r"\b(?:done|complete|completed|finished)\b", command)
     ):
         return "complete_task"
-    if re.match(r"^i(?:'ve| have)?\s+(?:completed|finished)\b", command):
+    if re.match(r"^i(?:'ve| have)?\s+(?:completed|finished|done)\b", command):
         return "complete_task"
 
+    if re.match(r"^(?:i'm|i am)\s+(?:done|finished)\s+with\b", command):
+        return "complete_task"
+    if re.match(r"^i\s+(?:just\s+)?(?:did|finished|completed)\b", command):
+        return "complete_task"
     return None
 
 
@@ -103,6 +107,8 @@ _TASK_COMMAND_WORDS = {
     "as", "from", "and", "with", "list", "done", "mark", "set",
     "complete", "completed", "finish", "finished", "check", "tick",
     "off", "delete", "remove", "erase", "permanently",
+    "discard", "cross", "get", "rid", "throw", "away", "did", "just",
+    "already", "im", "am", "doing", "it", "up",
 }
 _TASK_TITLE_FILLERS = {
     "the", "a", "an", "my", "your", "to", "for", "of", "at", "on", "in", "and"
@@ -110,7 +116,15 @@ _TASK_TITLE_FILLERS = {
 
 
 def _task_words(text):
-    return re.findall(r"[^\W_]+", text.casefold(), flags=re.UNICODE)
+    words = re.findall(r"[^\W_]+", text.casefold(), flags=re.UNICODE)
+    normalized = []
+    for word in words:
+        if word.endswith("ying") and len(word) > 5:
+            word = word[:-4] + "y"
+        elif word.endswith("ing") and len(word) > 5:
+            word = word[:-3]
+        normalized.append(word)
+    return normalized
 
 
 def _task_matches(message, available_tasks):
@@ -208,7 +222,8 @@ def _memory_deletion_subject(message):
     command = message.strip().casefold()
     command = re.sub(r"^(?:(?:hey|hi)[,\s]+)?mavis[,\s]+", "", command)
     command = re.sub(
-        r"^(?:(?:please|can you|could you|would you)\s+)+",
+        r"^(?:(?:please|can you|could you|would you|will you|"
+        r"i want you to|i need you to|i want to|i need to)\s+)+",
         "", command,
     )
     if re.match(r"^(?:don't|do not|never)\b", command):
@@ -217,7 +232,7 @@ def _memory_deletion_subject(message):
         subject = re.sub(r"^forget\b", "", command, count=1).strip()
     else:
         match = re.match(
-            r"^(?:delete|remove|erase)\s+"
+            r"^(?:(?:delete|remove|erase)\s+|get rid of\s+)"
             r"(?:(?:the|my|a)\s+)?(?:(?:saved|stored)\s+)?"
             r"memories?\b(.*)$",
             command,
@@ -227,7 +242,8 @@ def _memory_deletion_subject(message):
         subject = match.group(1).strip()
     subject = re.sub(
         r"^(?:(?:that|about|of|saying|which says|the fact that|"
-        r"what i told you about)\s+)+", "", subject,
+        r"what i told you about|what you remember about|"
+        r"what you know about)\s+)+", "", subject,
     )
     return subject.strip(" .,!?")
 
@@ -235,7 +251,8 @@ def _memory_deletion_subject(message):
 _MEMORY_FILLERS = {
     "i", "am", "my", "your", "the", "a", "an", "that", "is", "was",
     "are", "to", "for", "of", "on", "at", "about", "in", "me",
-    "memory", "saved", "remember", "it",
+    "memory", "saved", "remember", "it", "what", "you", "know",
+    "told", "said", "forget", "please",
 }
 
 
@@ -883,7 +900,9 @@ def chat(message_override=None):
     follow_up_task_id = None
     if pending_selection in {"complete_task", "delete_task"}:
         answer = message.strip().casefold().rstrip(".!?").strip()
-        if answer in {"no", "cancel", "never mind", "nevermind", "stop"}:
+        if confirmation_answer(message) == "no":
+            session.pop("pending_task_selection", None)
+            session.pop("pending_task_options", None)
             return jsonify({
                 "reply": "Okay, I cancelled that task request.",
                 "intent": pending_selection,
@@ -914,6 +933,15 @@ def chat(message_override=None):
                 follow_up_task_id = chosen["id"]
                 session.pop("pending_task_selection", None)
                 session.pop("pending_task_options", None)
+            elif confirmation_answer(message) == "yes":
+                return jsonify({
+                    "reply": _task_selection_reply(
+                        "complete" if pending_selection == "complete_task"
+                        else "delete", options
+                    ),
+                    "intent": pending_selection,
+                    "confirmation_required": False,
+                })
 
     if message.lower().startswith("add task:"):
         title = message.split(":", 1)[1].strip()
