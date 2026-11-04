@@ -52,6 +52,129 @@ if not app.config["SECRET_KEY"]:
 import task_service
 task_service.migrate()
 
+
+# Route explicit task commands deterministically while retaining Muse Spark
+# for less structured requests. These helpers never mutate the database.
+def _explicit_task_intent(message):
+    command = " ".join(message.casefold().strip().split())
+    command = re.sub(r"^(?:hey|hi|okay|ok)[,\s]+", "", command)
+    command = re.sub(r"^mavis[,\s]+", "", command)
+    command = re.sub(
+        r"^(?:(?:please|can you|could you|would you|will you|"
+        r"i want you to|i need you to|i want to|i need to)\s+)+",
+        "", command,
+    )
+
+    if re.match(r"^(?:how|why|when|where|don't|do not|never)\b", command):
+        return None
+    if re.search(r"\b(?:remind me|set a reminder)\b", command):
+        return None
+
+    if (
+        re.match(r"^(?:list|show|read|tell me|give me|what are|what's|which are)\b", command)
+        and re.search(r"\b(?:tasks?|to[- ]?dos?)\b", command)
+    ):
+        return "list_tasks"
+    if re.match(r"^(?:delete|remove|erase)\b", command):
+        return "delete_task"
+    if re.match(r"^(?:complete|finish|check off|tick off)\b", command):
+        return "complete_task"
+    if (
+        re.match(r"^(?:mark|set)\b", command)
+        and re.search(r"\b(?:done|complete|completed|finished)\b", command)
+    ):
+        return "complete_task"
+    if re.match(r"^i(?:'ve| have)?\s+(?:completed|finished)\b", command):
+        return "complete_task"
+
+    return None
+
+
+_TASK_COMMAND_WORDS = {
+    "mavis", "hey", "hi", "please", "can", "could", "would", "will",
+    "you", "i", "ve", "have", "want", "need", "me", "my", "your",
+    "the", "a", "an", "this", "that", "task", "tasks", "number", "id",
+    "named", "called", "is", "to", "for", "of", "at", "on", "in",
+    "as", "from", "and", "with", "list", "done", "mark", "set",
+    "complete", "completed", "finish", "finished", "check", "tick",
+    "off", "delete", "remove", "erase", "permanently",
+}
+_TASK_TITLE_FILLERS = {
+    "the", "a", "an", "my", "your", "to", "for", "of", "at", "on", "in", "and"
+}
+
+
+def _task_words(text):
+    return re.findall(r"[^\W_]+", text.casefold(), flags=re.UNICODE)
+
+
+def _task_matches(message, available_tasks):
+    """Select an unambiguous task or report all plausible candidates."""
+    normalized = " ".join(_task_words(message))
+    task_number = re.search(
+        r"\btask\s*(?:number\s*|id\s*|#\s*)?(\d+)\b",
+        message,
+        flags=re.IGNORECASE,
+    )
+    if task_number:
+        selected = next(
+            (
+                task for task in available_tasks
+                if task["id"] == int(task_number.group(1))
+            ),
+            None,
+        )
+        return selected, [selected] if selected else []
+
+    query_words = set(_task_words(message)) - _TASK_COMMAND_WORDS
+    if not query_words:
+        return None, []
+
+    candidates = []
+    for task in available_tasks:
+        title = " ".join(_task_words(task["title"]))
+        title_words = set(_task_words(task["title"])) - _TASK_TITLE_FILLERS
+        shared = title_words & query_words
+        if not title_words:
+            continue
+        full_title = bool(
+            re.search(r"(?<!\w)" + re.escape(title) + r"(?!\w)", normalized)
+        )
+        partial = (
+            len(shared) >= min(2, len(query_words))
+            and len(shared) / len(title_words) >= 0.5
+        )
+        if full_title or partial:
+            candidates.append((task, full_title, len(title_words)))
+
+    if len(candidates) == 1:
+        return candidates[0][0], [candidates[0][0]]
+
+    # A fully named longer task overrides a shorter embedded title only
+    # when the user has actually spoken the longer title.
+    fully_named = [item for item in candidates if item[1]]
+    if len(fully_named) > 1:
+        fully_named.sort(key=lambda item: item[2], reverse=True)
+        if fully_named[0][2] > fully_named[1][2]:
+            return fully_named[0][0], [item[0] for item in candidates]
+
+    return None, [item[0] for item in candidates]
+
+
+def _task_selection_reply(action, matches):
+    if matches:
+        choices = ", ".join(
+            f"{task['title']} (task {task['id']})" for task in matches[:4]
+        )
+        return (
+            f"I found multiple possible tasks: {choices}. "
+            "Please repeat the command using an exact title or task number."
+        )
+    return (
+        f"Which task would you like me to {action}? "
+        "Please repeat the command with its title or task number."
+    )
+
 @app.patch("/api/tasks/<int:task_id>")
 def update_task(task_id):
     data = request.get_json(silent=True)
@@ -482,20 +605,24 @@ def chat(message_override=None):
     )
 
 
-    intent_response = client.responses.create(
-        model="muse-spark-1.3",
-        instructions=intent_instructions,
-        input=message.strip()
-    )
+    # Clear spoken/task instructions do not require a model guess.
+    explicit_intent = _explicit_task_intent(message)
+    if explicit_intent:
+        intent = explicit_intent
+    else:
+        intent_response = client.responses.create(
+            model="muse-spark-1.3",
+            instructions=intent_instructions,
+            input=message.strip()
+        )
+        intent = intent_response.output_text.strip().lower()
 
-    intent = intent_response.output_text.strip().lower()
-
-    # Route explicit task-list requests deterministically.
     normalized_message = message.casefold()
-
-    if "tasks" in normalized_message and any(
-        phrase in normalized_message
-        for phrase in ("show", "list", "see", "what are", "read")
+    if (
+        re.search(r"\b(?:tasks?|to[- ]?dos?)\b", normalized_message)
+        and re.search(r"\b(?:list|show|read|see|what are|what's)\b", normalized_message)
+        and not re.search(r"\b(?:delete|remove|complete|finish)\b", normalized_message)
+        and not re.search(r"\b(?:remind me|set a reminder)\b", normalized_message)
     ):
         intent = "list_tasks"
 
@@ -742,69 +869,46 @@ def chat(message_override=None):
        })
 
     if intent == "list_tasks":
-        saved_tasks = get_saved_tasks()
-
-        print("DEBUG list_tasks count:", len(saved_tasks), flush=True)
-
-        # Filter tasks according to the requested completion status.
+        # Share the dashboard's priority, urgency, due-date and ID order.
+        saved_tasks = task_service.list_tasks()
         normalized_message = message.casefold()
 
-        if "completed" in normalized_message or "finished" in normalized_message:
+        if re.search(r"\b(?:completed|finished|done)\b", normalized_message):
             saved_tasks = [
-                task for task in saved_tasks
-                if task["completed"] == 1
+                task for task in saved_tasks if task["completed"] == 1
             ]
-        elif any(
-            word in normalized_message
-            for word in ("active", "open", "incomplete", "pending")
-        ):
+        elif re.search(r"\b(?:active|open|incomplete|pending)\b", normalized_message):
             saved_tasks = [
-                task for task in saved_tasks
-                if task["completed"] == 0
+                task for task in saved_tasks if task["completed"] == 0
             ]
 
         if not saved_tasks:
             return jsonify({
-                "reply": "You don't have any saved tasks yet.",
+                "reply": "There are no tasks in that list.",
                 "intent": intent,
                 "tasks": []
             })
 
-
-        task_titles = [task["title"] for task in saved_tasks]
-
-        # Confirm which tasks are included in the API response.
-        print("DEBUG returning task titles:", task_titles, flush=True)
-
+        ordered_titles = [
+            f"{index}. {task['title']}"
+            for index, task in enumerate(saved_tasks, start=1)
+        ]
         return jsonify({
-            "reply": "Here are your tasks: " + ", ".join(task_titles),
+            "reply": "Here are your tasks in order: " + "; ".join(ordered_titles),
             "intent": intent,
             "tasks": saved_tasks
         })
 
 
     if intent == "delete_task":
-        # Identify the target before requesting permanent deletion.
-        saved_tasks = get_saved_tasks()
-        normalized_message = message.casefold()
-
-        matches = [
-            task for task in saved_tasks
-            if task["title"].strip().casefold() in normalized_message
-        ]
-
-        # Never proceed when the task is missing or ambiguous.
-        if len(matches) != 1:
+        # Never request deletion confirmation unless the target is unique.
+        selected_task, matches = _task_matches(message, get_saved_tasks())
+        if selected_task is None:
             return jsonify({
-                "reply": (
-                    "I couldn't identify exactly one task. "
-                    "Please tell me the exact task name."
-                ),
+                "reply": _task_selection_reply("delete", matches),
                 "intent": intent,
                 "confirmation_required": False
             })
-
-        selected_task = matches[0]
 
         # Remember the selected task until the user confirms or cancels.
         session["pending_delete_task_id"] = selected_task["id"]
@@ -822,31 +926,21 @@ def chat(message_override=None):
         })
 
     if intent == "complete_task":
-        # Retrieve persisted tasks before selecting a completion target.
+        # Match an incomplete task and retain the original Builder-Verifier.
         saved_tasks = get_saved_tasks()
-               # Resolve an explicitly named task without bypassing ID validation.
+        incomplete_tasks = [
+            task for task in saved_tasks if task["completed"] == 0
+        ]
         task_id = data.get("task_id")
-
-        # Resolve a spoken task ID before task-name matching.
         if task_id is None:
-            match = re.search(
-                r"\btask\s*(?:number\s*|#\s*)?(\d+)\b",
-                message,
-                re.IGNORECASE,
-            )
-            if match:
-                task_id = int(match.group(1))
-
-        if task_id is None:
-            matches = [
-                task for task in saved_tasks
-                if task["completed"] == 0
-                and task["title"].strip().casefold()
-                in message.strip().casefold()
-            ]
-
-            if len(matches) == 1:
-                task_id = matches[0]["id"]
+            selected, matches = _task_matches(message, incomplete_tasks)
+            if selected is None:
+                return jsonify({
+                    "reply": _task_selection_reply("complete", matches),
+                    "intent": intent,
+                    "tasks": matches
+                })
+            task_id = selected["id"]
 
         if task_id is not None:
             if type(task_id) is not int or task_id <= 0:
