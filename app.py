@@ -234,7 +234,7 @@ def _memory_deletion_subject(message):
         match = re.match(
             r"^(?:(?:delete|remove|erase)\s+|get rid of\s+)"
             r"(?:(?:the|my|a)\s+)?(?:(?:saved|stored)\s+)?"
-            r"memories?\b(.*)$",
+            r"memor(?:y|ies)\b(.*)$",
             command,
         )
         if match is None:

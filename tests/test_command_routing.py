@@ -58,7 +58,9 @@ class CommandRoutingTests(unittest.TestCase):
                        "Can you forget my next demo test word is sapphire",
                        "I want you to forget my next demo test word is sapphire",
                        "Remove the saved memory about sapphire",
-                       "Get rid of my memory about sapphire"):
+                       "Get rid of my memory about sapphire",
+                       "Delete the memories about sapphire",
+                       "Erase my stored memory about pineapple"):
             with self.subTest(phrase=phrase):
                 self.assertIsNotNone(helpers["_memory_deletion_subject"](phrase))
         self.assertIsNone(helpers["_memory_deletion_subject"](
