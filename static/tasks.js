@@ -199,18 +199,22 @@ function render() {
           t.priority,
       ),
     );
-    const toggle = node("button", t.completed ? "Reopen" : "Mark complete");
-    toggle.onclick = () =>
-      change(toggle, "/api/tasks/" + t.id, "PATCH", {
-        completed: !t.completed,
-      });
+    // Completed tasks are displayed without a reopen action.
+    if (!t.completed) {
+      const complete = node("button", "Mark complete");
+      complete.onclick = () =>
+        change(complete, "/api/tasks/" + t.id, "PATCH", {
+          completed: true,
+        });
+      card.append(complete);
+    }
     const remove = node("button", "Delete");
     remove.setAttribute("aria-label", "Delete " + t.title);
     remove.onclick = () => {
       if (confirm('Delete "' + t.title + '"?'))
         change(remove, "/api/tasks/" + t.id, "DELETE", { confirm: true });
     };
-    card.append(toggle, remove);
+    card.append(remove);
     list.append(card);
   }
   renderHomeSummary();
