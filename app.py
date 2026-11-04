@@ -558,10 +558,14 @@ def chat(message_override=None):
             "pending_task_selection",
         )
     )
-    bare_delete = message.strip().casefold().strip(" .!?") in {
+    short_reply = message.strip().casefold().strip(" .!?")
+    bare_followup = short_reply in {
         "delete it", "mavis delete it", "mavis, delete it",
+        "save it", "mavis save it", "mavis, save it",
     }
-    if awaiting and (confirmation_answer(message) is not None or bare_delete):
+    if awaiting and (
+        confirmation_answer(message) is not None or bare_followup
+    ):
         new_action = False
 
     if new_action:
