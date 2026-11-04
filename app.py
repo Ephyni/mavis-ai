@@ -611,6 +611,11 @@ def chat(message_override=None):
                 f"Your most recent reminder is to {latest['message']}. "
                 f"It's scheduled for {spoken_date} at {spoken_time}."
             ),
+            "display_reply": (
+                f"Your most recent reminder: {latest['message']} — "
+                f"{due_local:%b} {due_local.day} at "
+                f"{due_local.strftime('%I:%M %p').lstrip('0')}."
+            ),
             "intent": "recall_reminder",
             "reminder_id": latest["id"]
         })
@@ -696,6 +701,12 @@ def chat(message_override=None):
             "reply": (
                 f"I saved your reminder to {reminder_message.strip()} "
                 f"for {format_spoken_reminder(local_due)}."
+            ),
+            # Only the on-screen label changes; speech keeps its natural wording.
+            "display_reply": (
+                f"Reminder set: {reminder_message.strip()} — "
+                f"{local_due:%b} {local_due.day} at "
+                f"{local_due.strftime('%I:%M %p').lstrip('0')}."
             ),
             "intent": "reminder",
             "reminder_id": reminder_id,

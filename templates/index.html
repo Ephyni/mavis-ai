@@ -106,6 +106,10 @@
           </div>
           <p id="voice-status" class="voice-status" role="status" aria-live="polite"></p>
           <section class="conversation-panel" aria-label="Text conversation">
+            <div class="conversation-heading">
+              <span>Latest conversation</span>
+              <button id="chat-history-button" type="button" class="text-action" hidden>View history</button>
+            </div>
             <div id="chat-log" class="chat-log" role="log" aria-live="polite">
               <p class="chat-placeholder">Your conversation will appear here when you send a message.</p>
             </div>
@@ -114,6 +118,13 @@
               <input id="chat-input" name="message" type="text" maxlength="1000" placeholder="Ask MAVIS anything…" autocomplete="off" required>
               <button id="send-chat" class="send-action" type="submit" aria-label="Send message">Send <span aria-hidden="true">↗</span></button>
             </form>
+            <dialog id="chat-history-dialog" class="chat-history-dialog" aria-label="Conversation history">
+              <div class="history-dialog-header">
+                <h2>Conversation history</h2>
+                <button id="chat-history-close" type="button" class="secondary-action">Close</button>
+              </div>
+              <div id="chat-history-list" class="history-list"></div>
+            </dialog>
           </section>
         </div>
 

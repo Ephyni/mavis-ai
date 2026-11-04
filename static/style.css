@@ -425,6 +425,135 @@ body.reduce-motion .strand-spark {
   }
   *, *::before, *::after { transition-duration: .01ms !important; }
 }
+
+/* Compact transcript previews; history remains available via a dialog. */
+.conversation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #94bbd8;
+  font-size: .73rem;
+  margin-bottom: 5px;
+}
+.conversation-heading .text-action { padding: 2px 5px; }
+.chat-history-dialog {
+  width: min(610px, calc(100vw - 32px));
+  max-height: min(74dvh, 620px);
+  overflow: hidden;
+  border: 1px solid #456e98;
+  border-radius: 17px;
+  color: #e9f4ff;
+  background: #0d2038;
+  padding: 18px;
+  box-shadow: 0 20px 80px #000b;
+}
+.chat-history-dialog::backdrop { background: rgba(3, 11, 25, .78); }
+.history-dialog-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 14px; }
+.history-list { display: flow-root; max-height: calc(min(74dvh, 620px) - 105px); overflow-y: auto; padding: 2px 9px; }
+.history-list .chat-message { display: block; max-width: 85%; white-space: normal; overflow: visible; }
+
+/* On laptop-sized screens, fit the Home workspace within the visible viewport. */
+@media (min-width: 981px) and (min-height: 600px) {
+  body.home-active {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: 54px minmax(0, 1fr);
+  }
+  body.home-active .mavis-sidebar { height: 100dvh; }
+  body.home-active #app-content {
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    padding: 10px clamp(16px, 2.7vw, 38px) 12px;
+  }
+  body.home-active #view-home { min-height: 0; height: 100%; }
+  body.home-active .home-layout {
+    height: 100%;
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 295px);
+    align-items: stretch;
+    gap: clamp(12px, 2vw, 28px);
+  }
+  body.home-active .conversation-stage {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0;
+  }
+  body.home-active .conversation-stage > .eyebrow { margin: 0 0 2px; font-size: .63rem; }
+  body.home-active .conversation-stage h1 { font-size: clamp(1.9rem, 2.6vw, 2.65rem); }
+  body.home-active .mavis-tagline { font-size: .91rem; margin: 3px 0 0; }
+  body.home-active .mavis-subtagline { font-size: .78rem; margin: 0; }
+  body.home-active .orb-container { padding-top: 6px; }
+  body.home-active .mavis-orb { width: clamp(154px, min(25dvh, 22vw), 230px); }
+  body.home-active .orb-label { margin-top: 9px; font-size: .62rem; }
+  body.home-active .orb-hint { margin: 5px 0 8px; font-size: .77rem; }
+  body.home-active .voice-actions { gap: 7px; }
+  body.home-active .voice-actions button { padding: 7px 11px; font-size: .79rem; }
+  body.home-active .voice-status {
+    min-height: 0;
+    max-height: 2.8em;
+    overflow: hidden;
+    margin: 5px auto 0;
+    font-size: .77rem;
+    line-height: 1.35;
+  }
+  body.home-active .voice-status:empty { display: none; }
+  body.home-active .conversation-panel { margin: auto auto 0; width: 100%; max-width: 630px; }
+  body.home-active .chat-log { min-height: 26px; max-height: 119px; overflow: hidden; padding: 0 3px 4px; }
+  body.home-active .chat-message {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+    max-width: 79%;
+    padding: 6px 11px;
+    margin: 4px 0;
+    font-size: .79rem;
+    line-height: 1.32;
+    border-radius: 12px;
+  }
+  body.home-active .chat-message.user { -webkit-line-clamp: 2; line-clamp: 2; }
+  body.home-active .chat-composer { padding: 4px; }
+  body.home-active .chat-composer input { padding: 8px 10px; font-size: .84rem; }
+  body.home-active .chat-composer .send-action { padding: 8px 13px; font-size: .83rem; }
+  body.home-active .home-side {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    gap: 9px;
+    padding: 0;
+  }
+  body.home-active .side-card { padding: 12px 13px; border-radius: 14px; }
+  body.home-active .side-card h2 { font-size: .88rem; margin: 0 0 7px; }
+  body.home-active .side-card .card-kicker { margin-bottom: 5px; font-size: .61rem; }
+  body.home-active .next-step-card h2 {
+    font-size: .79rem;
+    line-height: 1.35;
+    max-height: 4.05em;
+    overflow: hidden;
+  }
+  body.home-active .card-actions { margin-top: 7px; }
+  body.home-active .card-actions button { padding: 5px 7px; font-size: .69rem; }
+  body.home-active .side-card:nth-child(2) { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+  body.home-active .compact-task-list, body.home-active .activity-list { gap: 6px; margin-top: 6px; overflow: hidden; }
+  body.home-active .mini-task, body.home-active .activity-entry { padding: 7px 9px; border-radius: 9px; }
+  body.home-active .mini-task strong, body.home-active .activity-entry strong { font-size: .76rem; line-height: 1.3; }
+  body.home-active .mini-task span, body.home-active .activity-entry span { font-size: .69rem; }
+  body.home-active .side-card:nth-child(3) .activity-entry:nth-child(n+3) { display: none; }
+  body.home-active .chat-history-dialog .chat-message {
+    display: block;
+    max-width: 85%;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+  }
+}
+
 @media (max-width: 1190px) {
   .home-layout { grid-template-columns: minmax(0, 1fr) 280px; gap: 22px; }
   .tasks-layout { grid-template-columns: minmax(0, 1fr) 300px; }

@@ -439,7 +439,7 @@ stopSilenceDetection();
         throw new Error(result.error || "Voice command failed.");
       }
 
-voiceStatus.textContent = result.reply || "Voice command processed successfully.";
+voiceStatus.textContent = result.display_reply || result.reply || "Voice command processed successfully.";
 
 // Refresh tasks to display any changes made by MAVIS.
 await load();
@@ -530,6 +530,7 @@ const mavisViews = ["home", "tasks", "memory", "settings"];
 function activateView() {
   const requested = window.location.hash.slice(1);
   const view = mavisViews.includes(requested) ? requested : "home";
+  document.body.classList.toggle("home-active", view === "home");
   for (const screen of document.querySelectorAll(".view-screen")) {
     screen.hidden = screen.id !== "view-" + view;
   }
@@ -633,14 +634,40 @@ document.querySelector("#memory-form").addEventListener("submit", async (event) 
   }
 });
 
+// Keep the Home screen compact without discarding earlier chat messages.
+const chatLog = document.querySelector("#chat-log");
+const historyButton = document.querySelector("#chat-history-button");
+const historyDialog = document.querySelector("#chat-history-dialog");
+const historyList = document.querySelector("#chat-history-list");
+
+function updateChatPreview() {
+  const messages = [...chatLog.querySelectorAll(".chat-message")];
+  messages.forEach((item, index) => {
+    item.hidden = index < messages.length - 2;
+  });
+  historyButton.hidden = messages.length === 0;
+}
+
+historyButton.addEventListener("click", () => {
+  historyList.replaceChildren();
+  for (const message of chatLog.querySelectorAll(".chat-message")) {
+    const bubble = node("p", message.textContent);
+    bubble.className = message.className;
+    historyList.append(bubble);
+  }
+  historyDialog.showModal();
+});
+document.querySelector("#chat-history-close").addEventListener("click", () => {
+  historyDialog.close();
+});
+
 // Text messages share the same Flask /api/chat route and verification logic as voice.
 function addMavisChatMessage(role, message) {
-  const log = document.querySelector("#chat-log");
-  log.querySelector(".chat-placeholder")?.remove();
+  chatLog.querySelector(".chat-placeholder")?.remove();
   const bubble = node("p", message);
   bubble.className = "chat-message " + role;
-  log.append(bubble);
-  log.scrollTop = log.scrollHeight;
+  chatLog.append(bubble);
+  updateChatPreview();
 }
 document.querySelector("#chat-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -648,12 +675,16 @@ document.querySelector("#chat-form").addEventListener("submit", async (event) =>
   const send = document.querySelector("#send-chat");
   const message = input.value.trim();
   if (!message) return;
+  // Clear stale voice results when a new typed conversation starts.
+  if (!mediaRecorder || mediaRecorder.state !== "recording") {
+    voiceStatus.textContent = "";
+  }
   input.value = "";
   send.disabled = true;
   addMavisChatMessage("user", message);
   try {
     const response = await api("/api/chat", "POST", { message });
-    addMavisChatMessage("assistant", response.reply || "Your request was processed.");
+    addMavisChatMessage("assistant", response.display_reply || response.reply || "Your request was processed.");
     await load();
     if (response.reply) {
       try {
