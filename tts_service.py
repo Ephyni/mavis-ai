@@ -9,7 +9,7 @@ from kokoro_onnx import Kokoro
 
 
 MODEL_DIR = Path(__file__).parent / "models" / "kokoro"
-VOICE = "am_michael"
+VOICE = "am_puck"
 
 # Cache only the short, fixed confirmations returned after verified actions.
 # Never cache personal task names, memories, reminders, or model-generated text.

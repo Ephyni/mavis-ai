@@ -999,11 +999,18 @@ def chat(message_override=None):
             "spoken_reply": "Task added and verified.",
         })
 
+    # Distinguish local model-client setup from the network model calls.
+    setup_started = time.perf_counter()
     load_dotenv()
 
     client = OpenAI(
         base_url="https://api.meta.ai/v1",
         api_key=os.environ["MODEL_API_KEY"]
+    )
+    print(
+        f"MAVIS latency | Muse client setup: "
+        f"{(time.perf_counter() - setup_started) * 1000:.0f} ms",
+        flush=True,
     )
 
 
