@@ -152,12 +152,12 @@ p { line-height: 1.55; }
   transition: filter 1.15s ease-in-out;
 }
 .ring-waves path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.ribbon-thread { stroke-width: 1.15; }
-.ribbon-thread--highlight { stroke-width: 1.65; }
+.ribbon-thread { stroke-width: 1.18; }
+.ribbon-thread--highlight { stroke-width: 1.9; }
 .ribbon-glow {
-  stroke: #63d9ff;
-  stroke-width: 6;
-  opacity: .12;
+  stroke: #74dfff;
+  stroke-width: 5;
+  opacity: .11;
   filter: blur(3px);
 }
 .ribbon-bundle { transform-box: view-box; transform-origin: 50% 50%; }
@@ -193,16 +193,16 @@ p { line-height: 1.55; }
   50% { transform: scale(1.03); opacity: 1; }
 }
 @keyframes ribbon-weave-one {
-  from { transform: rotate(-2deg) scale(.993); }
-  to { transform: rotate(2deg) scale(1.008); }
+  from { transform: rotate(-3.2deg) scale(.988); }
+  to { transform: rotate(3.6deg) scale(1.016); }
 }
 @keyframes ribbon-weave-two {
-  from { transform: rotate(1.6deg) scale(1.009); }
-  to { transform: rotate(-2.3deg) scale(.992); }
+  from { transform: rotate(3.3deg) scale(1.018); }
+  to { transform: rotate(-3.6deg) scale(.988); }
 }
 @keyframes ribbon-weave-three {
-  from { transform: rotate(-1.7deg) scale(.996); }
-  to { transform: rotate(1.5deg) scale(1.006); }
+  from { transform: rotate(-3.5deg) scale(.99); }
+  to { transform: rotate(3deg) scale(1.013); }
 }
 
 .orb-label { font-size: .7rem; font-weight: 750; letter-spacing: .36em; color: #9dcdf0; margin: 26px 0 0; }
@@ -393,7 +393,7 @@ body.reduce-motion .ring-ambient {
   body.home-active .mavis-tagline { font-size: .98rem; margin: 3px 0 0; }
   body.home-active .mavis-subtagline { font-size: .84rem; margin: 0; }
   body.home-active .orb-container { padding-top: 8px; }
-  body.home-active .mavis-orb { width: clamp(215px, min(36dvh, 27vw), 280px); }
+  body.home-active .mavis-orb { width: clamp(218px, min(38dvh, 29vw), 296px); }
   body.home-active .orb-label { margin-top: 9px; font-size: .67rem; }
   body.home-active .orb-hint { margin: 6px 0 9px; font-size: .82rem; }
   body.home-active .voice-actions { gap: 8px; }
@@ -452,7 +452,7 @@ body.reduce-motion .ring-ambient {
   }
   body.home-active .card-actions { margin-top: 7px; }
   body.home-active .card-actions button { padding: 6px 8px; font-size: .74rem; }
-  body.home-active .side-card:nth-child(2) { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+  body.home-active .side-card:nth-child(2) { flex: 0 0 auto; min-height: 0; overflow: hidden; }
   body.home-active .compact-task-list, body.home-active .activity-list { gap: 6px; margin-top: 6px; overflow: hidden; }
   body.home-active .mini-task, body.home-active .activity-entry { padding: 8px 9px; border-radius: 9px; }
   body.home-active .mini-task strong, body.home-active .activity-entry strong { font-size: .82rem; line-height: 1.3; }
