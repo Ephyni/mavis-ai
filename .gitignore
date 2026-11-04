@@ -244,3 +244,8 @@ models/kokoro/
 mavis_*.wav
 test_voice.webm
 static/tasks.backup.js
+
+.venv/
+.venv312/
+.env
+*.db
