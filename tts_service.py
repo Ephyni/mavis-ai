@@ -11,6 +11,16 @@ from kokoro_onnx import Kokoro
 MODEL_DIR = Path(__file__).parent / "models" / "kokoro"
 VOICE = "am_michael"
 
+# Cache only the short, fixed confirmations returned after verified actions.
+# Never cache personal task names, memories, reminders, or model-generated text.
+CACHED_CONFIRMATIONS = frozenset({
+    "Task added and verified.",
+    "Done. That task is completed and verified.",
+    "Deleted and verified.",
+    "Memory saved and verified.",
+    "Memory deleted and verified.",
+})
+
 
 @lru_cache(maxsize=1)
 def get_tts_model():
@@ -51,11 +61,8 @@ def preload_tts_model():
     return True
 
 
-def generate_speech(text):
-    """Generate natural, conversational speech for MAVIS."""
-    if not isinstance(text, str) or not text.strip():
-        raise ValueError("Speech text must not be empty.")
-
+def _synthesize_speech(text):
+    """Generate fresh samples without caching personalized content."""
     started = time.perf_counter()
     samples, sample_rate = get_tts_model().create(
         text,
@@ -69,3 +76,30 @@ def generate_speech(text):
         flush=True,
     )
     return samples, sample_rate
+
+
+@lru_cache(maxsize=len(CACHED_CONFIRMATIONS))
+def _cached_confirmation_speech(text):
+    """Hold synthesized samples for the limited fixed confirmation vocabulary."""
+    return _synthesize_speech(text)
+
+
+def generate_speech(text):
+    """Return cached verified confirmations; synthesize all other text fresh."""
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("Speech text must not be empty.")
+
+    if text not in CACHED_CONFIRMATIONS:
+        return _synthesize_speech(text)
+
+    started = time.perf_counter()
+    previous_hits = _cached_confirmation_speech.cache_info().hits
+    audio = _cached_confirmation_speech(text)
+    cache_hit = _cached_confirmation_speech.cache_info().hits > previous_hits
+    print(
+        f"MAVIS latency | Kokoro fixed reply cache "
+        f"{'hit' if cache_hit else 'miss'}: "
+        f"{(time.perf_counter() - started) * 1000:.0f} ms",
+        flush=True,
+    )
+    return audio
