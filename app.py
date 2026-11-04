@@ -75,6 +75,7 @@ def _explicit_task_intent(message):
     command = " ".join(message.casefold().strip().split())
     command = re.sub(r"^(?:hey|hi|okay|ok)[,\s]+", "", command)
     command = re.sub(r"^mavis[,\s]+", "", command)
+    command = re.sub(r"^(?:actually|instead)[,\s]+", "", command)
     command = re.sub(
         r"^(?:(?:please|can you|could you|would you|will you|"
         r"i want you to|i need you to|i want to|i need to)\s+)+",
@@ -91,6 +92,14 @@ def _explicit_task_intent(message):
         and re.search(r"\b(?:tasks?|to[- ]?dos?)\b", command)
     ):
         return "list_tasks"
+    # A new creation request must replace any pending task-selection action.
+    # Match only explicit task creation, not unrelated "create" requests.
+    if re.match(
+        r"^(?:add|create)\s+(?:(?:a|an|the|my|new)\s+)*"
+        r"(?:task|to[- ]?do)\b",
+        command,
+    ):
+        return "add_task"
     if re.match(r"^(?:delete|remove|erase|discard|get rid of|throw away)\b", command):
         return "delete_task"
     if re.match(r"^(?:complete|finish|check off|tick off|cross off)\b", command):

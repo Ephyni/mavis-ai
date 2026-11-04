@@ -29,6 +29,25 @@ class CommandRoutingTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertEqual(helpers["_explicit_task_intent"](phrase), "complete_task")
 
+    def test_create_phrases_override_unrelated_pending_actions(self):
+        for phrase in (
+            "Hey Mavis, create a task to buy soda.",
+            "Hey MAVIS, actually create a task to buy soda.",
+            "MAVIS add a task to buy soda.",
+            "Please create a new task to buy soda.",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertEqual(
+                    helpers["_explicit_task_intent"](phrase), "add_task"
+                )
+        for phrase in (
+            "Create a story about tasks",
+            "Don't create a task",
+            "How do I create a task?",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIsNone(helpers["_explicit_task_intent"](phrase))
+
     def test_delete_phrases(self):
         for phrase in ("MAVIS delete my Python task", "Get rid of my Python task",
                        "Please remove the Python task"):

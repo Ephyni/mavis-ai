@@ -8,6 +8,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import memory
@@ -149,6 +150,51 @@ class ConsecutiveActionsTest(unittest.TestCase):
         cancelled = self.chat("No")
         self.assertTrue(cancelled["cancelled"])
         self.assertEqual(len(memory.get_memories()), 1)
+
+    def test_hey_mavis_create_cancels_unmatched_delete_selection(self):
+        gum_id = memory.save_task("Buy gum")
+        unmatched = self.chat("Hey Mavis, delete by gum from the active tasks.")
+        self.assertEqual(unmatched["intent"], "delete_task")
+        self.assertFalse(unmatched["confirmation_required"])
+
+        stages = []
+        def fake_model_response(_client, stage, **_kwargs):
+            stages.append(stage)
+            self.assertEqual(stage, "task title extraction")
+            return SimpleNamespace(output_text="Buy soda")
+
+        with patch.object(self.module, "_timed_model_response",
+                          side_effect=fake_model_response):
+            created = self.chat("Hey Mavis, create a task to buy soda.")
+        self.assertEqual(created["intent"], "add_task")
+        self.assertIn("Buy soda", created["reply"])
+        self.assertEqual(stages, ["task title extraction"])
+        saved = {task["id"]: task["title"] for task in memory.get_tasks()}
+        self.assertEqual(saved[gum_id], "Buy gum")
+        self.assertIn("Buy soda", saved.values())
+        with self.client.session_transaction() as session:
+            self.assertNotIn("pending_task_selection", session)
+            self.assertNotIn("pending_delete_task_id", session)
+
+    def test_new_creation_replaces_selected_delete_confirmation(self):
+        gum_id = memory.save_task("Buy gum")
+        selected = self.chat("MAVIS, delete buy gum.")
+        self.assertTrue(selected["confirmation_required"])
+
+        with patch.object(
+            self.module,
+            "_timed_model_response",
+            return_value=SimpleNamespace(output_text="Buy soda"),
+        ):
+            created = self.chat("Hey MAVIS, actually create a task to buy soda.")
+        self.assertEqual(created["intent"], "add_task")
+        self.assertIn("Buy soda", created["reply"])
+        saved = {task["id"]: task["title"] for task in memory.get_tasks()}
+        self.assertEqual(saved[gum_id], "Buy gum")
+        self.assertIn("Buy soda", saved.values())
+        with self.client.session_transaction() as session:
+            self.assertNotIn("pending_delete_task_id", session)
+            self.assertNotIn("pending_task_selection", session)
 
     def test_new_memory_command_replaces_stale_task_confirmation(self):
         task_id = memory.save_task("Prepare demo clips")
