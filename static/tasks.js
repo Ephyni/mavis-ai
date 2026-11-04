@@ -1,4 +1,5 @@
 let tasks = [],
+  taskActivity = [],
   filter = "open",
   recommendation = null;
 const status = document.querySelector("#status");
@@ -24,8 +25,12 @@ async function load() {
       String(d.getMonth() + 1).padStart(2, "0"),
       String(d.getDate()).padStart(2, "0"),
     ].join("-");
-  const r = await api("/api/tasks?today=" + today);
+  const [r, activity] = await Promise.all([
+    api("/api/tasks?today=" + today),
+    api("/api/task-activity"),
+  ]);
   tasks = r.tasks;
+  taskActivity = activity.events;
   recommendation = r.recommendation;
   render();
 }
@@ -194,7 +199,7 @@ function render() {
     remove.setAttribute("aria-label", "Delete " + t.title);
     remove.onclick = () => {
       if (confirm('Delete "' + t.title + '"?'))
-        change(remove, "/api/tasks/" + t.id, "DELETE");
+        change(remove, "/api/tasks/" + t.id, "DELETE", { confirm: true });
     };
     card.append(toggle, remove);
     list.append(card);
@@ -510,16 +515,22 @@ function renderHomeSummary() {
     active.append(item);
   }
 
-  const latest = [...tasks].sort((a, b) => b.id - a.id).slice(0, 3);
-  if (!latest.length) {
-    recent.append(node("p", "Task activity appears here after you create a task."));
+  // Display actual events, not task creation order or current task state.
+  const activityLabels = {
+    created: "Saved task",
+    completed: "Completed task",
+    deleted: "Deleted task",
+    reopened: "Reopened task",
+  };
+  if (!taskActivity.length) {
+    recent.append(node("p", "New task activity will appear here."));
   }
-  for (const task of latest) {
+  for (const event of taskActivity.slice(0, 2)) {
     const item = node("div", "");
     item.className = "activity-entry";
     item.append(
-      node("strong", task.completed ? "Completed task" : "Saved task"),
-      node("span", task.title),
+      node("strong", activityLabels[event.action] || "Task activity"),
+      node("span", event.title),
     );
     recent.append(item);
   }

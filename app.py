@@ -32,6 +32,7 @@ from memory import (
     save_reminder,
     verify_reminder_saved,
     get_reminders,
+    get_task_activity,
     get_due_reminders,
     mark_reminder_notified,
 )
@@ -253,6 +254,12 @@ def get_tasks():
         return jsonify({"tasks": tasks, "recommendation": task_service.recommendation(tasks)})
     except ValueError:
         return jsonify({"error": "Invalid date."}), 400
+
+@app.get("/api/task-activity")
+def recent_task_activity():
+    """Expose real task actions in persisted newest-first order."""
+    return jsonify({"events": get_task_activity(limit=2)})
+
 
 @app.post("/api/tasks")
 def create_task():

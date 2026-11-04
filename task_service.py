@@ -72,7 +72,12 @@ def recommendation(tasks):
 def create(data):
     values = validate(data)
     with connect() as db:
-        return db.execute("INSERT INTO tasks (title, due_date, priority, estimated_minutes) VALUES (?, ?, ?, ?)", values).lastrowid
+        cursor = db.execute(
+            "INSERT INTO tasks (title, due_date, priority, estimated_minutes) VALUES (?, ?, ?, ?)",
+            values,
+        )
+        memory.log_task_activity(db, cursor.lastrowid, values[0], "created")
+        return cursor.lastrowid
 
 def update(task_id, data):
     with connect() as db:
@@ -88,8 +93,19 @@ def update(task_id, data):
         completed_at = (row["completed_at"] or datetime.now().isoformat()) if completed else None
         db.execute("UPDATE tasks SET title=?, due_date=?, priority=?, estimated_minutes=?, completed=?, completed_at=? WHERE id=?",
                    (*values, int(completed), completed_at, task_id))
+        if int(completed) != row["completed"]:
+            event = "completed" if completed else "reopened"
+            memory.log_task_activity(db, task_id, values[0], event)
         return True
 
 def delete(task_id):
     with connect() as db:
-        return db.execute("DELETE FROM tasks WHERE id=?", (task_id,)).rowcount > 0
+        prior = db.execute(
+            "SELECT title FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        if prior is None:
+            return False
+        deleted = db.execute("DELETE FROM tasks WHERE id=?", (task_id,)).rowcount > 0
+        if deleted:
+            memory.log_task_activity(db, task_id, prior["title"], "deleted")
+        return deleted

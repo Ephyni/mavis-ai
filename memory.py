@@ -33,6 +33,20 @@ def init_db():
         )
     """)
 
+    # Events remain available even after a task itself is deleted.
+    # The increasing event ID defines a stable newest-first activity order.
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS task_activity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            action TEXT NOT NULL CHECK (
+                action IN ('created', 'completed', 'deleted', 'reopened')
+            ),
+            happened_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     # Persist reminders so they survive application restarts.
     connection.execute("""
         CREATE TABLE IF NOT EXISTS reminders (
@@ -331,19 +345,54 @@ def reject_memory(proposal_id):
     finally:
         connection.close()
 
-def save_task(title):
-    connection = sqlite3.connect(DATABASE)
-
-    cursor = connection.execute(
-        "INSERT INTO tasks (title) VALUES (?)",
-        (title,)
+def log_task_activity(connection, task_id, title, action):
+    """Append a real task event within the caller's SQLite transaction."""
+    if action not in {"created", "completed", "deleted", "reopened"}:
+        raise ValueError("Unsupported task activity action.")
+    connection.execute(
+        "INSERT INTO task_activity (task_id, title, action) VALUES (?, ?, ?)",
+        (task_id, title, action),
     )
 
-    connection.commit()
-    task_id = cursor.lastrowid
-    connection.close()
 
-    return task_id
+def get_task_activity(limit=2):
+    """Return the latest persisted task actions, newest event first."""
+    if type(limit) is not int or not 1 <= limit <= 20:
+        raise ValueError("Activity limit must be between 1 and 20.")
+
+    connection = sqlite3.connect(DATABASE)
+    connection.row_factory = sqlite3.Row
+    try:
+        rows = connection.execute(
+            """
+            SELECT id, task_id, title, action, happened_at
+            FROM task_activity
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        connection.close()
+
+
+def save_task(title):
+    connection = sqlite3.connect(DATABASE)
+    try:
+        cursor = connection.execute(
+            "INSERT INTO tasks (title) VALUES (?)",
+            (title,)
+        )
+        task_id = cursor.lastrowid
+        log_task_activity(connection, task_id, title, "created")
+        connection.commit()
+        return task_id
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 def get_tasks(completed=None):
@@ -406,6 +455,11 @@ def complete_task(task_id):
             (task_id,)
         )
 
+        if cursor.rowcount > 0:
+            row = connection.execute(
+                "SELECT title FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            log_task_activity(connection, task_id, row[0], "completed")
         connection.commit()
 
         # Report whether SQLite modified a matching record.
@@ -425,6 +479,13 @@ def delete_task(task_id):
     connection = sqlite3.connect(DATABASE)
 
     try:
+        # Preserve the title before removing the record permanently.
+        prior = connection.execute(
+            "SELECT title FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        if prior is None:
+            return False
+
         # Target exactly one task using its unique database ID.
         cursor = connection.execute(
             "DELETE FROM tasks WHERE id = ?",
@@ -445,6 +506,7 @@ def delete_task(task_id):
             connection.rollback()
             return False
 
+        log_task_activity(connection, task_id, prior[0], "deleted")
         connection.commit()
         return True
 
