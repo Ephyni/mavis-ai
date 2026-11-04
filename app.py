@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import subprocess
 import tempfile
+import time
 import requests
 
 # Import MAVIS's SQLite task-management functions.
@@ -56,6 +57,16 @@ if not app.config["SECRET_KEY"]:
 
 import task_service
 task_service.migrate()
+
+
+def _timed_model_response(client, stage, **kwargs):
+    """Measure model request time without exposing user content in timing logs."""
+    started = time.perf_counter()
+    try:
+        return client.responses.create(**kwargs)
+    finally:
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        print(f"MAVIS latency | Muse {stage}: {elapsed_ms:.0f} ms", flush=True)
 
 
 # Route explicit task commands deterministically while retaining Muse Spark
@@ -1006,7 +1017,8 @@ def chat(message_override=None):
     if explicit_intent or follow_up_task_intent:
         intent = explicit_intent or follow_up_task_intent
     else:
-        intent_response = client.responses.create(
+        intent_response = _timed_model_response(
+            client, "intent classification",
             model="muse-spark-1.3",
             instructions=intent_instructions,
             input=message.strip()
@@ -1154,7 +1166,8 @@ def chat(message_override=None):
         now_local = datetime.now(local_tz)
 
         # Extract the reminder message and scheduled time.
-        extraction = client.responses.create(
+        extraction = _timed_model_response(
+            client, "reminder extraction",
             model="muse-spark-1.3",
             instructions=(
                 "Extract a reminder message and due time. "
@@ -1237,7 +1250,8 @@ def chat(message_override=None):
         }), 201
 
     if intent == "add_task":
-        title_response = client.responses.create(
+        title_response = _timed_model_response(
+            client, "task title extraction",
             model="muse-spark-1.3",
             instructions=(
                 "Extract the task title from the user's message. "
@@ -1436,7 +1450,8 @@ def chat(message_override=None):
         for memory in get_memories()[:10]
     )
 
-    response = client.responses.create(
+    response = _timed_model_response(
+        client, "conversational reply",
         model="muse-spark-1.3",
         instructions=(
             "You are MAVIS, a friendly, energetic, and curious AI personal assistant. "
@@ -1538,6 +1553,7 @@ def transcribe_audio(wav_path):
 @app.post("/api/voice")
 def receive_voice():
     """Validate an uploaded voice recording before transcription."""
+    voice_started = time.perf_counter()
     audio = request.files.get("audio")
 
     if audio is None or not audio.filename:
@@ -1553,10 +1569,22 @@ def receive_voice():
             output_path = os.path.join(temp_dir, "recording.wav")
 
             audio.save(input_path)
+            stage_started = time.perf_counter()
             convert_audio_to_wav(input_path, output_path)
+            print(
+                f"MAVIS latency | audio conversion: "
+                f"{(time.perf_counter() - stage_started) * 1000:.0f} ms",
+                flush=True,
+            )
 
-            # Return only the transcript after Meta confirms success.
+            # Meta transcription runs as a separate network request.
+            stage_started = time.perf_counter()
             result = transcribe_audio(output_path)
+            print(
+                f"MAVIS latency | transcription: "
+                f"{(time.perf_counter() - stage_started) * 1000:.0f} ms",
+                flush=True,
+            )
             transcript = result.get("transcript", "").strip()
 
             print("MAVIS transcript:", repr(transcript))
@@ -1567,8 +1595,20 @@ def receive_voice():
                 }), 422
 
 
-            # Process the spoken command within the original browser session.
-            return chat(transcript)
+            # Process the command in the same browser session and time its work.
+            stage_started = time.perf_counter()
+            reply = chat(transcript)
+            print(
+                f"MAVIS latency | command handling: "
+                f"{(time.perf_counter() - stage_started) * 1000:.0f} ms",
+                flush=True,
+            )
+            print(
+                f"MAVIS latency | voice backend total: "
+                f"{(time.perf_counter() - voice_started) * 1000:.0f} ms",
+                flush=True,
+            )
+            return reply
 
 
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):

@@ -43,6 +43,9 @@ async function speakResponse(text) {
     return;
   }
 
+  // Measure how long synthesis and audio startup take together.
+  const speechStartedAt = performance.now();
+
   // Remove Markdown formatting before speech synthesis.
   const spokenText = text
     .replace(/\*\*(.*?)\*\*/g, "$1")
@@ -71,6 +74,11 @@ async function speakResponse(text) {
 
   // Synchronize the orb with actual audio playback.
   audio.addEventListener("playing", () => {
+    console.info(
+      "MAVIS latency | speech request to playback:",
+      Math.round(performance.now() - speechStartedAt),
+      "ms"
+    );
     setOrbState("speaking");
   });
 
@@ -446,17 +454,20 @@ stopSilenceDetection();
 
 voiceStatus.textContent = result.display_reply || result.reply || "Voice command processed successfully.";
 
-// Refresh the task summary and saved memories after the verified voice action.
-await Promise.all([load(), refreshMemoryAfterConversation(result)]);
+// Begin voice playback before waiting for the task and memory refreshes.
+const speechPromise =
+  typeof result.reply === "string" && result.reply.trim()
+    ? speakResponse(result.reply).catch((speechError) => {
+        console.error("MAVIS speech playback failed:", speechError);
+      })
+    : Promise.resolve();
 
-// Speak the response returned by the conversational backend.
-if (typeof result.reply === "string" && result.reply.trim()) {
-  try {
-    await speakResponse(result.reply);
-  } catch (speechError) {
-    console.error("MAVIS speech playback failed:", speechError);
-  }
-}
+// Keep verified records in sync independently of speech generation.
+await Promise.all([
+  load(),
+  refreshMemoryAfterConversation(result),
+  speechPromise,
+]);
 
     } catch (error) {
       voiceStatus.textContent = error.message;
@@ -745,14 +756,17 @@ document.querySelector("#chat-form").addEventListener("submit", async (event) =>
   try {
     const response = await api("/api/chat", "POST", { message });
     addMavisChatMessage("assistant", response.display_reply || response.reply || "Your request was processed.");
-    await Promise.all([load(), refreshMemoryAfterConversation(response)]);
-    if (response.reply) {
-      try {
-        await speakResponse(response.reply);
-      } catch (error) {
-        console.warn("Voice playback failed:", error);
-      }
-    }
+    // Text replies start speech generation while UI data refreshes.
+    const speechPromise = response.reply
+      ? speakResponse(response.reply).catch((error) => {
+          console.warn("Voice playback failed:", error);
+        })
+      : Promise.resolve();
+    await Promise.all([
+      load(),
+      refreshMemoryAfterConversation(response),
+      speechPromise,
+    ]);
   } catch (error) {
     addMavisChatMessage("error", "MAVIS couldn't complete that request: " + error.message);
   } finally {

@@ -15,10 +15,17 @@ VOICE = "am_michael"
 @lru_cache(maxsize=1)
 def get_tts_model():
     """Load the speech model once and reuse it across requests."""
-    return Kokoro(
+    started = time.perf_counter()
+    model = Kokoro(
         str(MODEL_DIR / "kokoro-v1.0.onnx"),
         str(MODEL_DIR / "voices-v1.0.bin"),
     )
+    print(
+        f"MAVIS latency | Kokoro first load: "
+        f"{(time.perf_counter() - started) * 1000:.0f} ms",
+        flush=True,
+    )
+    return model
 
 
 
@@ -27,15 +34,16 @@ def generate_speech(text):
     if not isinstance(text, str) or not text.strip():
         raise ValueError("Speech text must not be empty.")
 
-    return get_tts_model().create(
+    started = time.perf_counter()
+    samples, sample_rate = get_tts_model().create(
         text,
         voice=VOICE,
         speed=1.15,
         lang="en-us",
     )
-
-
-    elapsed = time.perf_counter() - start
-    print(f"MAVIS TTS generation: {elapsed:.2f} seconds", flush=True)
-
+    print(
+        f"MAVIS latency | Kokoro generation (includes first load): "
+        f"{(time.perf_counter() - started) * 1000:.0f} ms",
+        flush=True,
+    )
     return samples, sample_rate
