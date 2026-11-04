@@ -10,21 +10,29 @@ Powered by Meta Muse models, MAVIS combines conversational reasoning, task manag
 
 ## 1. Project Overview
 
-MAVIS was designed to address a common limitation of conversational AI: generating helpful responses without necessarily executing or verifying real-world actions.
+**MAVIS — Make room for what matters** — is a voice-first AI productivity assistant built for the Meta Global AI Developer Hackathon. It transforms natural-language requests into useful actions while verifying supported changes against persistent application data.
 
-MAVIS connects an AI reasoning model to application tools, allowing users to manage tasks, recall saved information, and schedule reminders through voice.
+MAVIS combines **Meta Muse Spark 1.3** for conversational reasoning and task interpretation, **Muse Voice Transcribe 1.0** for speech-to-text, and **Kokoro ONNX (Puck voice)** for natural spoken responses. The interface centers on a reactive holographic voice orb, with a workspace for tasks, persistent memory, and reminders.
 
-Its Builder–Verifier architecture independently validates supported operations before reporting success.
+**MAVIS doesn't just say an action was completed. It checks.** The Builder–Verifier workflow confirms supported task and memory changes in SQLite before reporting success. Clearly expressed commands can use deterministic routing, while less structured requests use Muse Spark.
 
-### Key Capabilities
+### Features
 
-- **Voice-first interaction:** Communicate through an interactive holographic voice orb.
-- **Conversational AI:** Understand natural-language instructions using Meta Muse Spark 1.3.
-- **Verified task management:** Create, list, complete, and delete tasks.
-- **Persistent memory:** Store information in SQLite and retrieve it across application restarts.
-- **Proactive reminders:** Automatically detect and announce scheduled reminders.
-- **Natural speech:** Generate conversational voice responses with Kokoro ONNX.
-- **Reactive interface:** Provide visual feedback during listening, thinking, and speaking.
+- **Voice-first and text interaction:** Speak to the holographic orb or type a request; the interface displays listening, thinking, and speaking states.
+- **Verified task management:** Create, view, complete, and delete tasks by name. Permanent deletion requires confirmation, and similar task names are handled cautiously.
+- **Persistent memory:** Propose and approve saved facts, recall information across application restarts, and request verified memory deletion.
+- **Reminders and proactive notifications:** Schedule reminders in natural language and receive visual and spoken notifications while the server and browser are running.
+- **Prioritized workspace:** Review Your Next Step, active tasks, completed tasks, and Recent Activity drawn from recorded application actions.
+- **Natural spoken responses:** Hear Kokoro ONNX's Puck voice, with model preloading, concise verified confirmations, and in-memory caching for five fixed confirmation phrases.
+- **Builder–Verifier architecture:** Supported actions are independently checked against the database before success is reported.
+
+### Interface Preview
+
+![MAVIS voice-first holographic workspace with navigation, a reactive orb, active tasks, and recent activity](docs/images/MAVIS_Interface.webp)
+
+*MAVIS home workspace — the holographic voice orb in the center, navigation on the left, and a live productivity overview on the right.*
+
+The interface is designed to keep conversation at the center while giving users visibility into real task state and recently recorded actions. Its main views are **Home**, **Tasks**, **Memory**, and **Settings**.
 
 ## 2. Meta Models Used
 
@@ -37,7 +45,7 @@ MAVIS integrates two Meta AI models.
 
 ### Muse Spark 1.3
 
-MAVIS uses Muse Spark 1.3 to interpret requests and decide which supported operation to execute.
+MAVIS uses Muse Spark 1.3 for conversational responses, intent classification when needed, and extraction of task or reminder details. Explicit task commands may be routed deterministically without a model classification call.
 
 The Flask backend makes authenticated requests to:
 
@@ -66,10 +74,10 @@ The model is executed locally through the Kokoro ONNX Python package and ONNX Ru
 1. Muse Spark or an application workflow produces response text.
 2. MAVIS prepares the text for natural speech, including conversational date and time formatting.
 3. The Flask `/api/tts` endpoint requests audio from the locally loaded Kokoro ONNX model.
-4. Kokoro generates speech using the configured `am_michael` voice.
+4. Kokoro generates speech using the configured `am_puck` (Puck) voice.
 5. The browser plays the generated audio while MAVIS displays its speaking state.
 
-The model and voice files are loaded from `models/kokoro/`.
+The model and voice files are loaded from `models/kokoro/`. The model is preloaded before Flask serves requests. Routine verified confirmations use concise spoken wording while the complete written answer remains visible, and a bounded in-memory cache reuses audio for five fixed confirmation phrases. Personalized speech is generated fresh.
 
 The pretrained model weights are third-party components, not models trained by the MAVIS developer. They are downloaded separately rather than stored in the repository.
 
@@ -265,9 +273,11 @@ MAVIS requests confirmation before executing the permanent deletion.
 
 ### Use Persistent Memory
 
-MAVIS can retrieve facts that were previously saved through its memory API.
+**Say:** “MAVIS, remember that my demo code word is blue comet.”
 
-For example, save a demonstration memory:
+MAVIS proposes saving the fact and asks for approval. After you confirm, it verifies that the fact was saved in SQLite. You can ask MAVIS to recall the saved fact, or request that it forget the memory; deletion requires confirmation.
+
+The memory API also supports direct storage. For example, save a demonstration memory:
 
 ```bash
 curl -X POST http://127.0.0.1:5000/api/memories \
@@ -320,18 +330,21 @@ MAVIS separates execution from verification.
 ### Execution Workflow
 
 ```text
-Voice command
+Voice or text command
       |
       v
-Muse Voice Transcribe
+Muse Voice Transcribe (for voice)
       |
       v
-Muse Spark 1.3
-      |
-      v
-Intent classification
-      |
-      v
+Intent resolution
+  |                 |
+  v                 v
+Deterministic     Muse Spark 1.3
+task routing      for less-structured requests
+  |                 |
+  +--------+--------+
+           |
+           v
 Python application tool
       |
       v
@@ -390,6 +403,7 @@ During the event, I developed and integrated:
 - SQLite task management
 - Persistent user memories
 - Memory-proposal review and approval
+- Verified conversational memory deletion
 - Reminder creation and retrieval
 
 **Verified Execution**
@@ -409,7 +423,7 @@ During the event, I developed and integrated:
 **User Interface**
 
 - Voice-activated holographic orb
-- Task dashboard
+- Task dashboard, prioritized Next Step, and Recent Activity
 - Listening, thinking, and speaking feedback
 
 ## 10. Testing and Verification
@@ -432,7 +446,9 @@ Check JavaScript syntax:
 node --check static/tasks.js
 ```
 
-MAVIS has also undergone manual end-to-end testing of task actions, persistent memory, voice interactions, reminder scheduling, spoken notifications, and SQLite acknowledgment.
+**Validation checkpoint:** All **43 automated tests passed** in GitHub Codespaces on November 4, 2026. These include tests for safe task selection, confirmed task and memory deletion, pending-command replacement, Kokoro speech caching, and voice configuration.
+
+MAVIS has also undergone manual end-to-end testing of task actions, persistent memory, voice interactions, reminder scheduling, spoken notifications, and SQLite acknowledgment. The working voice interface was tested for creating a task immediately after an unfinished deletion request.
 
 ## 11. Timezone Handling
 
@@ -451,15 +467,20 @@ The current prototype supports one configured timezone per application instance.
 - Internet access required for Meta-hosted inference
 - Automatic reminders require the application and browser to remain open
 - Browser audio permissions can affect automatic playback
-- No email or calendar integrations in the current MVP
 - Open-weight speech model files must be downloaded separately
 
-## 13. Three-Minute Demonstration
+## 13. Future Expansions
+
+MAVIS is a working hackathon prototype with a foundation for further agentic capabilities. Potential future directions include deeper email and calendar integrations, more flexible multi-step workflow orchestration, and further reduction of open-ended conversational response latency.
+
+These are future possibilities, **not features claimed to be implemented in this prototype**. The current release focuses on reliable voice-driven task actions, persistent memory, reminders, and verified execution.
+
+## 14. Three-Minute Demonstration
 
 **Demo video:** Public link to be added before submission.
 
 The demonstration highlights MAVIS's voice-first interaction, verified task operations, persistent memory, and automatic spoken reminders.
 
-## 14. License
+## 15. License
 
 See [LICENSE](LICENSE).
