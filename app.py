@@ -25,6 +25,8 @@ from memory import (
     init_db,
     save_memory,
     get_memories,
+    delete_memory,
+    verify_memory_deleted,
     propose_memory,
     get_proposals,
     approve_memory,
@@ -199,6 +201,85 @@ def _task_selection_reply(action, matches):
             ". Which task name did you mean? You can say just its name.")
 
 
+# Interpret only explicit memory-forgetting instructions, not task deletion.
+def _memory_deletion_subject(message):
+    command = message.strip().casefold()
+    command = re.sub(r"^(?:(?:hey|hi)[,\s]+)?mavis[,\s]+", "", command)
+    command = re.sub(
+        r"^(?:(?:please|can you|could you|would you)\s+)+",
+        "", command,
+    )
+    if re.match(r"^(?:don't|do not|never)\b", command):
+        return None
+    if re.match(r"^forget\b", command):
+        subject = re.sub(r"^forget\b", "", command, count=1).strip()
+    else:
+        match = re.match(
+            r"^(?:delete|remove|erase)\s+"
+            r"(?:(?:the|my|a)\s+)?(?:(?:saved|stored)\s+)?"
+            r"memories?\b(.*)$",
+            command,
+        )
+        if match is None:
+            return None
+        subject = match.group(1).strip()
+    subject = re.sub(
+        r"^(?:(?:that|about|of|saying|which says|the fact that|"
+        r"what i told you about)\s+)+", "", subject,
+    )
+    return subject.strip(" .,!?")
+
+
+_MEMORY_FILLERS = {
+    "i", "am", "my", "your", "the", "a", "an", "that", "is", "was",
+    "are", "to", "for", "of", "on", "at", "about", "in", "me",
+    "memory", "saved", "remember", "it",
+}
+
+
+def _saved_memory_matches(subject, available):
+    """Require a unique exact or keyword match; never guess between memories."""
+    query = [
+        word for word in _task_words(subject) if word not in _MEMORY_FILLERS
+    ]
+    if not query:
+        return None, []
+    exact = [
+        item for item in available
+        if [word for word in _task_words(item["content"])
+            if word not in _MEMORY_FILLERS] == query
+    ]
+    if exact:
+        return (exact[0] if len(exact) == 1 else None), exact
+    wanted = set(query)
+    candidates = [
+        item for item in available
+        if wanted.issubset(
+            set(_task_words(item["content"])) - _MEMORY_FILLERS
+        )
+    ]
+    return (candidates[0] if len(candidates) == 1 else None), candidates
+
+
+def _memory_delete_question(matches):
+    """Ask for an identifiable memory before requesting confirmation."""
+    if not matches:
+        return (
+            "I couldn't identify that saved memory. "
+            "Please say what it says or use Delete on the Memory screen."
+        )
+    if len(matches) == 1:
+        return f"Are you sure you want me to forget: '{matches[0]['content']}'?"
+    choices = "; ".join(
+        f"{index}. {item['content'][:100]}"
+        for index, item in enumerate(matches[:4], start=1)
+    )
+    return (
+        "I found more than one matching memory: " + choices +
+        ". Please say which one, such as first or second, or its name."
+    )
+
+
 @app.patch("/api/tasks/<int:task_id>")
 def update_task(task_id):
     data = request.get_json(silent=True)
@@ -350,6 +431,24 @@ def list_memories():
     })
 
 
+@app.delete("/api/memories/<int:memory_id>")
+def remove_saved_memory(memory_id):
+    """Delete one confirmed saved memory, then independently verify removal."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or data.get("confirm") is not True:
+        return jsonify({"error": "Confirm before deleting a saved memory."}), 400
+    deleted = delete_memory(memory_id)
+    if not deleted:
+        return jsonify({"error": "Saved memory not found."}), 404
+    if not verify_memory_deleted(memory_id):
+        return jsonify({
+            "error": "Memory deletion could not be verified.", "verified": False
+        }), 500
+    return jsonify({
+        "status": "deleted", "memory_id": memory_id, "verified": True
+    })
+
+
 @app.post("/api/memory-proposals")
 def create_memory_proposal():
     data = request.get_json(silent=True) or {}
@@ -485,6 +584,119 @@ def chat(message_override=None):
         # An unrelated command cancels the pending confirmation.
         session.pop("pending_delete_task_id", None)
 
+
+    # Handle voice and text deletion of already-approved memories before
+    # the save-memory workflow or Muse intent classification.
+    memory_answer = message.strip().casefold().strip(" .!?")
+    pending_delete_memory = session.get("pending_delete_memory_id")
+    accept_delete = {
+        "yes", "yes please", "yes, please", "yes delete it",
+        "yes, delete it", "yes forget it", "yes, forget it",
+        "confirm", "confirm deletion", "delete it", "forget it",
+    }
+    reject_delete = {
+        "no", "no thanks", "no, thanks", "cancel", "never mind",
+        "nevermind", "don't delete it", "do not delete it",
+    }
+    if pending_delete_memory is not None:
+        if memory_answer in accept_delete:
+            session.pop("pending_delete_memory_id", None)
+            if type(pending_delete_memory) is not int:
+                return jsonify({"error": "Invalid saved-memory selection."}), 400
+            removed = delete_memory(pending_delete_memory)
+            verified = verify_memory_deleted(pending_delete_memory) if removed else False
+            if not verified:
+                return jsonify({
+                    "reply": "I couldn't verify that memory's deletion.",
+                    "intent": "delete_memory", "verified": False,
+                }), 409
+            return jsonify({
+                "reply": "I've forgotten that memory and verified its removal.",
+                "intent": "delete_memory",
+                "memory_id": pending_delete_memory,
+                "verified": True,
+            })
+        session.pop("pending_delete_memory_id", None)
+        if memory_answer in reject_delete:
+            return jsonify({
+                "reply": "Okay, I kept that memory.",
+                "intent": "delete_memory", "cancelled": True,
+            })
+
+    # A follow-up can select one of the saved memories MAVIS just offered.
+    pending_options = session.pop("pending_memory_delete_options", [])
+    if pending_options:
+        if memory_answer in reject_delete:
+            return jsonify({
+                "reply": "Okay, I kept those memories.",
+                "intent": "delete_memory", "cancelled": True,
+            })
+        stored_memories = get_memories()
+        choices = [
+            next((item for item in stored_memories if item["id"] == option), None)
+            for option in pending_options[:4]
+        ]
+        choices = [item for item in choices if item is not None]
+        order = {
+            "first": 0, "the first one": 0,
+            "second": 1, "the second one": 1,
+            "third": 2, "the third one": 2,
+            "fourth": 3, "the fourth one": 3,
+            "newest": 0, "the newer one": 0,
+            "oldest": -1, "the older one": -1,
+        }
+        index = order.get(memory_answer)
+        selected = None
+        if index is not None and -len(choices) <= index < len(choices):
+            selected = choices[index]
+        if selected is None and choices and index is None:
+            selected, matches = _saved_memory_matches(message, choices)
+            if selected is None and matches:
+                choices = matches
+        if selected is not None:
+            session["pending_delete_memory_id"] = selected["id"]
+            return jsonify({
+                "reply": _memory_delete_question([selected]),
+                "intent": "delete_memory", "confirmation_required": True,
+            })
+        if choices:
+            session["pending_memory_delete_options"] = [
+                item["id"] for item in choices[:4]
+            ]
+            return jsonify({
+                "reply": _memory_delete_question(choices),
+                "intent": "delete_memory", "confirmation_required": False,
+            })
+
+    forget_subject = _memory_deletion_subject(message)
+    if forget_subject is not None:
+        session.pop("pending_task_selection", None)
+        session.pop("pending_task_options", None)
+        if not forget_subject:
+            return jsonify({
+                "reply": (
+                    "Which saved memory should I forget? "
+                    "Tell me what it says or use the Memory screen."
+                ),
+                "intent": "delete_memory",
+            })
+        selected, matches = _saved_memory_matches(
+            forget_subject, get_memories()
+        )
+        if selected is None:
+            if len(matches) > 1:
+                session["pending_memory_delete_options"] = [
+                    item["id"] for item in matches[:4]
+                ]
+            return jsonify({
+                "reply": _memory_delete_question(matches),
+                "intent": "delete_memory", "confirmation_required": False,
+            })
+        session["pending_delete_memory_id"] = selected["id"]
+        return jsonify({
+            "reply": _memory_delete_question([selected]),
+            "intent": "delete_memory", "confirmation_required": True,
+        })
 
     # Handle explicit conversational memory requests before model intent routing.
     # Voice and text use this same handler and require approval before saving.

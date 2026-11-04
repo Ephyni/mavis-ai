@@ -528,9 +528,15 @@ function renderHomeSummary() {
   for (const event of taskActivity.slice(0, 2)) {
     const item = node("div", "");
     item.className = "activity-entry";
+    const memoryDeleted =
+      event.entity_type === "memory" && event.action === "deleted";
     item.append(
-      node("strong", activityLabels[event.action] || "Task activity"),
-      node("span", event.title),
+      node("strong", memoryDeleted
+        ? "Deleted memory"
+        : activityLabels[event.action] || "Task activity"),
+      node("span", memoryDeleted
+        ? "A saved memory was removed"
+        : event.title),
     );
     recent.append(item);
   }
@@ -586,6 +592,30 @@ async function loadMavisMemories() {
         node("p", memory.content),
         node("small", memory.category || "general"),
       );
+      const actions = node("div", "");
+      actions.className = "memory-actions";
+      const remove = node("button", "Delete");
+      remove.type = "button";
+      remove.setAttribute("aria-label", "Delete saved memory");
+      remove.onclick = async () => {
+        if (!window.confirm("Permanently delete this saved memory?")) return;
+        remove.disabled = true;
+        try {
+          const result = await api(
+            "/api/memories/" + memory.id, "DELETE", { confirm: true },
+          );
+          if (!result.verified) throw Error("Deletion was not verified.");
+          await loadMavisMemories();
+          await load(); // Make the new event appear at the top of Home.
+          document.querySelector("#memory-status").textContent =
+            "Saved memory deleted and verified.";
+        } catch (error) {
+          fetchStatus.textContent = error.message;
+          remove.disabled = false;
+        }
+      };
+      actions.append(remove);
+      item.append(actions);
       saved.append(item);
     }
 

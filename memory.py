@@ -47,6 +47,16 @@ def init_db():
         )
     """)
 
+    # Include memory deletions in the same chronological event stream.
+    activity_columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(task_activity)")
+    }
+    if "entity_type" not in activity_columns:
+        connection.execute(
+            "ALTER TABLE task_activity "
+            "ADD COLUMN entity_type TEXT NOT NULL DEFAULT 'task'"
+        )
+
     # Persist reminders so they survive application restarts.
     connection.execute("""
         CREATE TABLE IF NOT EXISTS reminders (
@@ -238,6 +248,64 @@ def get_memories():
     return memories
 
 
+def delete_memory(memory_id):
+    """Delete a saved memory and approved proposal copy, without logging its text."""
+    if type(memory_id) is not int or memory_id <= 0:
+        return False
+    connection = sqlite3.connect(DATABASE)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        stored = connection.execute(
+            "SELECT content, category FROM memories WHERE id = ?", (memory_id,)
+        ).fetchone()
+        if stored is None:
+            connection.rollback()
+            return False
+        removed = connection.execute(
+            "DELETE FROM memories WHERE id = ?", (memory_id,)
+        ).rowcount
+        if removed != 1:
+            connection.rollback()
+            return False
+
+        # Approved proposals retain a copy of the memory's original text.
+        connection.execute(
+            """
+            DELETE FROM memory_proposals
+            WHERE status = 'approved' AND content = ? AND category = ?
+            """,
+            (stored[0], stored[1]),
+        )
+        # Do not write forgotten content to history: only log the event.
+        connection.execute(
+            """
+            INSERT INTO task_activity (task_id, title, action, entity_type)
+            VALUES (?, 'A saved memory was removed', 'deleted', 'memory')
+            """,
+            (memory_id,),
+        )
+        connection.commit()
+        return True
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def verify_memory_deleted(memory_id):
+    """Independently verify that this ID no longer exists in saved memories."""
+    if type(memory_id) is not int or memory_id <= 0:
+        return False
+    connection = sqlite3.connect(DATABASE)
+    try:
+        return connection.execute(
+            "SELECT 1 FROM memories WHERE id = ?", (memory_id,)
+        ).fetchone() is None
+    finally:
+        connection.close()
+
+
 def propose_memory(content, category="general"):
     connection = sqlite3.connect(DATABASE)
 
@@ -365,7 +433,7 @@ def get_task_activity(limit=2):
     try:
         rows = connection.execute(
             """
-            SELECT id, task_id, title, action, happened_at
+            SELECT id, task_id, title, action, happened_at, entity_type
             FROM task_activity
             ORDER BY id DESC
             LIMIT ?
