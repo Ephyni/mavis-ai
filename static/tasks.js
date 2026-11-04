@@ -446,8 +446,8 @@ stopSilenceDetection();
 
 voiceStatus.textContent = result.display_reply || result.reply || "Voice command processed successfully.";
 
-// Refresh tasks to display any changes made by MAVIS.
-await load();
+// Refresh the task summary and saved memories after the verified voice action.
+await Promise.all([load(), refreshMemoryAfterConversation(result)]);
 
 // Speak the response returned by the conversational backend.
 if (typeof result.reply === "string" && result.reply.trim()) {
@@ -657,6 +657,22 @@ async function loadMavisMemories() {
     fetchStatus.textContent = "Unable to load memories: " + error.message;
   }
 }
+
+// Keep the Memory view current when Home creates, approves, or deletes a memory.
+// Refresh only after the backend reports a state change or pending proposal.
+async function refreshMemoryAfterConversation(result) {
+  if (!result || !["save_memory", "delete_memory"].includes(result.intent)) {
+    return;
+  }
+  if (
+    result.verified === true ||
+    result.pending_approval === true ||
+    result.cancelled === true
+  ) {
+    await loadMavisMemories();
+  }
+}
+
 document.querySelector("#memory-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -729,7 +745,7 @@ document.querySelector("#chat-form").addEventListener("submit", async (event) =>
   try {
     const response = await api("/api/chat", "POST", { message });
     addMavisChatMessage("assistant", response.display_reply || response.reply || "Your request was processed.");
-    await load();
+    await Promise.all([load(), refreshMemoryAfterConversation(response)]);
     if (response.reply) {
       try {
         await speakResponse(response.reply);
