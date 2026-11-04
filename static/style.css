@@ -118,21 +118,21 @@ p { line-height: 1.55; }
 .mavis-orb:focus-visible { outline: 2px solid #9ceaff; outline-offset: 6px; }
 
 /* Only the perimeter glows. Its middle remains fully transparent. */
+/* A close, faint edge halo without a broad illuminated disc. */
 .ring-ambient {
   position: absolute;
-  inset: -6%;
+  inset: -2%;
   z-index: -1;
   border-radius: 50%;
   pointer-events: none;
   background: radial-gradient(circle,
-    transparent 43%,
-    rgba(73, 122, 255, .10) 57%,
-    rgba(72, 190, 255, .26) 69%,
-    rgba(117, 80, 219, .08) 77%,
-    transparent 88%);
-  -webkit-mask-image: radial-gradient(circle, transparent 0 48%, #000 56% 78%, transparent 88%);
-  mask-image: radial-gradient(circle, transparent 0 48%, #000 56% 78%, transparent 88%);
-  filter: blur(12px) hue-rotate(0deg);
+    transparent 54%,
+    rgba(72, 190, 255, .12) 64%,
+    rgba(78, 137, 245, .07) 70%,
+    transparent 78%);
+  -webkit-mask-image: radial-gradient(circle, transparent 0 54%, #000 60% 71%, transparent 79%);
+  mask-image: radial-gradient(circle, transparent 0 54%, #000 60% 71%, transparent 79%);
+  filter: blur(6px) hue-rotate(0deg);
   animation: ribbon-breathe 5.8s ease-in-out infinite;
   transition: filter 1.1s ease-in-out;
 }
@@ -145,7 +145,10 @@ p { line-height: 1.55; }
   overflow: visible;
   pointer-events: none;
   fill: none;
-  filter: hue-rotate(0deg) drop-shadow(0 0 3px rgba(92, 179, 255, .45));
+  /* Enlarge the actual ribbon geometry, not merely the surrounding halo. */
+  transform: scale(1.12);
+  transform-origin: center;
+  filter: hue-rotate(0deg) drop-shadow(0 0 2px rgba(92, 179, 255, .38));
   transition: filter 1.15s ease-in-out;
 }
 .ring-waves path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
@@ -153,9 +156,9 @@ p { line-height: 1.55; }
 .ribbon-thread--highlight { stroke-width: 1.65; }
 .ribbon-glow {
   stroke: #63d9ff;
-  stroke-width: 9;
-  opacity: .17;
-  filter: blur(5px);
+  stroke-width: 6;
+  opacity: .12;
+  filter: blur(3px);
 }
 .ribbon-bundle { transform-box: view-box; transform-origin: 50% 50%; }
 .ribbon-bundle--one { animation: ribbon-weave-one 9s ease-in-out infinite alternate; }
@@ -167,19 +170,19 @@ p { line-height: 1.55; }
   filter: hue-rotate(-26deg) drop-shadow(0 0 6px rgba(54, 233, 218, .68));
 }
 .mavis-orb[data-state="listening"] .ring-ambient {
-  filter: blur(12px) hue-rotate(-26deg);
+  filter: blur(6px) hue-rotate(-26deg);
 }
 .mavis-orb[data-state="thinking"] .ring-waves {
   filter: hue-rotate(65deg) drop-shadow(0 0 7px rgba(172, 111, 253, .7));
 }
 .mavis-orb[data-state="thinking"] .ring-ambient {
-  filter: blur(12px) hue-rotate(65deg);
+  filter: blur(6px) hue-rotate(65deg);
 }
 .mavis-orb[data-state="speaking"] .ring-waves {
   filter: hue-rotate(4deg) brightness(1.25) drop-shadow(0 0 8px rgba(73, 174, 255, .78));
 }
 .mavis-orb[data-state="speaking"] .ring-ambient {
-  filter: blur(12px) hue-rotate(4deg) brightness(1.2);
+  filter: blur(6px) hue-rotate(4deg) brightness(1.2);
 }
 @keyframes ribbon-float {
   0%, 100% { transform: translateY(0); }
@@ -390,7 +393,7 @@ body.reduce-motion .ring-ambient {
   body.home-active .mavis-tagline { font-size: .98rem; margin: 3px 0 0; }
   body.home-active .mavis-subtagline { font-size: .84rem; margin: 0; }
   body.home-active .orb-container { padding-top: 8px; }
-  body.home-active .mavis-orb { width: clamp(185px, min(30dvh, 24vw), 252px); }
+  body.home-active .mavis-orb { width: clamp(215px, min(36dvh, 27vw), 280px); }
   body.home-active .orb-label { margin-top: 9px; font-size: .67rem; }
   body.home-active .orb-hint { margin: 6px 0 9px; font-size: .82rem; }
   body.home-active .voice-actions { gap: 8px; }
