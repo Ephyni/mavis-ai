@@ -471,7 +471,7 @@ body.reduce-motion .strand-spark {
   body.home-active #view-home { min-height: 0; height: 100%; }
   body.home-active .home-layout {
     height: 100%;
-    grid-template-columns: minmax(0, 1fr) minmax(250px, 295px);
+    grid-template-columns: minmax(0, 1fr) minmax(255px, 300px);
     align-items: stretch;
     gap: clamp(12px, 2vw, 28px);
   }
@@ -480,28 +480,35 @@ body.reduce-motion .strand-spark {
     flex-direction: column;
     min-height: 0;
     padding: 0;
+    justify-content: center;
   }
-  body.home-active .conversation-stage > .eyebrow { margin: 0 0 2px; font-size: .63rem; }
-  body.home-active .conversation-stage h1 { font-size: clamp(1.9rem, 2.6vw, 2.65rem); }
-  body.home-active .mavis-tagline { font-size: .91rem; margin: 3px 0 0; }
-  body.home-active .mavis-subtagline { font-size: .78rem; margin: 0; }
-  body.home-active .orb-container { padding-top: 6px; }
-  body.home-active .mavis-orb { width: clamp(154px, min(25dvh, 22vw), 230px); }
-  body.home-active .orb-label { margin-top: 9px; font-size: .62rem; }
-  body.home-active .orb-hint { margin: 5px 0 8px; font-size: .77rem; }
-  body.home-active .voice-actions { gap: 7px; }
-  body.home-active .voice-actions button { padding: 7px 11px; font-size: .79rem; }
+  body.home-active .conversation-stage > .eyebrow { margin: 0 0 2px; font-size: .69rem; }
+  body.home-active .conversation-stage h1 { font-size: clamp(2.05rem, 2.7vw, 2.7rem); }
+  body.home-active .mavis-tagline { font-size: .98rem; margin: 3px 0 0; }
+  body.home-active .mavis-subtagline { font-size: .84rem; margin: 0; }
+  body.home-active .orb-container { padding-top: 8px; }
+  body.home-active .mavis-orb { width: clamp(185px, min(30dvh, 24vw), 252px); }
+  body.home-active .orb-label { margin-top: 9px; font-size: .67rem; }
+  body.home-active .orb-hint { margin: 6px 0 9px; font-size: .82rem; }
+  body.home-active .voice-actions { gap: 8px; }
+  body.home-active .voice-actions button { padding: 8px 12px; font-size: .84rem; }
   body.home-active .voice-status {
     min-height: 0;
     max-height: 2.8em;
     overflow: hidden;
     margin: 5px auto 0;
-    font-size: .77rem;
+    font-size: .82rem;
     line-height: 1.35;
   }
   body.home-active .voice-status:empty { display: none; }
-  body.home-active .conversation-panel { margin: auto auto 0; width: 100%; max-width: 630px; }
-  body.home-active .chat-log { min-height: 26px; max-height: 119px; overflow: hidden; padding: 0 3px 4px; }
+  /* Keep the chat connected to the orb rather than pinned to the bottom. */
+  body.home-active .conversation-panel {
+    margin: clamp(10px, 2dvh, 18px) auto 0;
+    width: 100%;
+    max-width: 630px;
+  }
+  body.home-active .conversation-heading { font-size: .8rem; }
+  body.home-active .chat-log { min-height: 26px; max-height: min(132px, 20dvh); overflow: hidden; padding: 0 3px 4px; }
   body.home-active .chat-message {
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -511,14 +518,14 @@ body.reduce-motion .strand-spark {
     max-width: 79%;
     padding: 6px 11px;
     margin: 4px 0;
-    font-size: .79rem;
-    line-height: 1.32;
+    font-size: .86rem;
+    line-height: 1.36;
     border-radius: 12px;
   }
   body.home-active .chat-message.user { -webkit-line-clamp: 2; line-clamp: 2; }
   body.home-active .chat-composer { padding: 4px; }
-  body.home-active .chat-composer input { padding: 8px 10px; font-size: .84rem; }
-  body.home-active .chat-composer .send-action { padding: 8px 13px; font-size: .83rem; }
+  body.home-active .chat-composer input { padding: 8px 10px; font-size: .9rem; }
+  body.home-active .chat-composer .send-action { padding: 8px 13px; font-size: .87rem; }
   body.home-active .home-side {
     display: flex;
     flex-direction: column;
@@ -528,22 +535,22 @@ body.reduce-motion .strand-spark {
     gap: 9px;
     padding: 0;
   }
-  body.home-active .side-card { padding: 12px 13px; border-radius: 14px; }
-  body.home-active .side-card h2 { font-size: .88rem; margin: 0 0 7px; }
-  body.home-active .side-card .card-kicker { margin-bottom: 5px; font-size: .61rem; }
+  body.home-active .side-card { padding: 13px 14px; border-radius: 14px; }
+  body.home-active .side-card h2 { font-size: .96rem; margin: 0 0 7px; }
+  body.home-active .side-card .card-kicker { margin-bottom: 5px; font-size: .67rem; }
   body.home-active .next-step-card h2 {
-    font-size: .79rem;
+    font-size: .86rem;
     line-height: 1.35;
-    max-height: 4.05em;
+    max-height: 5.4em;
     overflow: hidden;
   }
   body.home-active .card-actions { margin-top: 7px; }
-  body.home-active .card-actions button { padding: 5px 7px; font-size: .69rem; }
+  body.home-active .card-actions button { padding: 6px 8px; font-size: .74rem; }
   body.home-active .side-card:nth-child(2) { flex: 1 1 auto; min-height: 0; overflow: hidden; }
   body.home-active .compact-task-list, body.home-active .activity-list { gap: 6px; margin-top: 6px; overflow: hidden; }
-  body.home-active .mini-task, body.home-active .activity-entry { padding: 7px 9px; border-radius: 9px; }
-  body.home-active .mini-task strong, body.home-active .activity-entry strong { font-size: .76rem; line-height: 1.3; }
-  body.home-active .mini-task span, body.home-active .activity-entry span { font-size: .69rem; }
+  body.home-active .mini-task, body.home-active .activity-entry { padding: 8px 9px; border-radius: 9px; }
+  body.home-active .mini-task strong, body.home-active .activity-entry strong { font-size: .82rem; line-height: 1.3; }
+  body.home-active .mini-task span, body.home-active .activity-entry span { font-size: .75rem; }
   body.home-active .side-card:nth-child(3) .activity-entry:nth-child(n+3) { display: none; }
   body.home-active .chat-history-dialog .chat-message {
     display: block;
