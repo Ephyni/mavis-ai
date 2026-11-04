@@ -158,6 +158,9 @@ def _task_matches(message, available_tasks):
         if fully_named[0][2] > fully_named[1][2]:
             return fully_named[0][0], [item[0] for item in candidates]
 
+    if len(fully_named) == 1 and len(candidates) > 1:
+        return fully_named[0][0], [item[0] for item in candidates]
+
     return None, [item[0] for item in candidates]
 
 
@@ -168,11 +171,11 @@ def _task_selection_reply(action, matches):
         )
         return (
             f"I found multiple possible tasks: {choices}. "
-            "Please repeat the command using an exact title or task number."
+            "Please say the exact title or task number."
         )
     return (
         f"Which task would you like me to {action}? "
-        "Please repeat the command with its title or task number."
+        "Please say its title or task number."
     )
 
 @app.patch("/api/tasks/<int:task_id>")
@@ -566,6 +569,28 @@ def chat(message_override=None):
             "pending_approval": True,
         })
 
+    # Remember requests that need a task name. A subsequent title or task
+    # number can resolve the action without requiring the verb again.
+    pending_selection = session.pop("pending_task_selection", None)
+    follow_up_task_intent = None
+    if pending_selection in {"complete_task", "delete_task"}:
+        answer = message.strip().casefold().rstrip(".!?").strip()
+        if answer in {"no", "cancel", "never mind", "nevermind", "stop"}:
+            return jsonify({
+                "reply": "Okay, I cancelled that task request.",
+                "intent": pending_selection,
+                "cancelled": True,
+            })
+
+        new_command = _explicit_task_intent(message)
+        unrelated = re.match(
+            r"^(?:(?:mavis[,\s]+)?(?:please\s+)?)"
+            r"(?:remind|remember|add|create|list|show|what|why|when|how|where)\b",
+            answer,
+        )
+        if new_command is None and unrelated is None:
+            follow_up_task_intent = pending_selection
+
     if message.lower().startswith("add task:"):
         title = message.split(":", 1)[1].strip()
 
@@ -607,8 +632,8 @@ def chat(message_override=None):
 
     # Clear spoken/task instructions do not require a model guess.
     explicit_intent = _explicit_task_intent(message)
-    if explicit_intent:
-        intent = explicit_intent
+    if explicit_intent or follow_up_task_intent:
+        intent = explicit_intent or follow_up_task_intent
     else:
         intent_response = client.responses.create(
             model="muse-spark-1.3",
@@ -904,6 +929,7 @@ def chat(message_override=None):
         # Never request deletion confirmation unless the target is unique.
         selected_task, matches = _task_matches(message, get_saved_tasks())
         if selected_task is None:
+            session["pending_task_selection"] = "delete_task"
             return jsonify({
                 "reply": _task_selection_reply("delete", matches),
                 "intent": intent,
@@ -935,6 +961,7 @@ def chat(message_override=None):
         if task_id is None:
             selected, matches = _task_matches(message, incomplete_tasks)
             if selected is None:
+                session["pending_task_selection"] = "complete_task"
                 return jsonify({
                     "reply": _task_selection_reply("complete", matches),
                     "intent": intent,
