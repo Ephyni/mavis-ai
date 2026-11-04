@@ -28,7 +28,7 @@ MAVIS combines **Meta Muse Spark 1.3** for conversational reasoning and task int
 
 ### Interface Preview
 
-![MAVIS voice-first holographic workspace with navigation, a reactive orb, active tasks, and recent activity](docs/images/MAVIS_Interface.webp)
+![MAVIS voice-first holographic workspace with navigation, a reactive orb, active tasks, and recent activity](docs/images/MAVIS_Interface.png)
 
 *MAVIS home workspace — the holographic voice orb in the center, navigation on the left, and a live productivity overview on the right.*
 
