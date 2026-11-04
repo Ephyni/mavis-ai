@@ -83,6 +83,48 @@ class ConsecutiveActionsTest(unittest.TestCase):
         remaining = memory.get_tasks()
         self.assertEqual([task["id"] for task in remaining], [beta_id])
 
+    def test_full_task_list_with_concise_spoken_summary(self):
+        memory.save_task("Review presentation notes")
+        memory.save_task("Practice speaking to the judges")
+        result = self.chat("MAVIS, show me my tasks")
+        self.assertIn("Review presentation notes", result["reply"])
+        self.assertIn("Practice speaking to the judges", result["reply"])
+        self.assertEqual(len(result["tasks"]), 2)
+        self.assertIn("2 tasks", result["spoken_reply"])
+        self.assertNotIn("presentation notes", result["spoken_reply"])
+
+    def test_verified_actions_speak_concisely_without_hiding_details(self):
+        task_id = memory.save_task("Prepare presentation for the hackathon")
+        completed = self.chat("MAVIS, complete prepare presentation for the hackathon")
+        self.assertEqual(completed["verification"]["status"], "verified")
+        self.assertIn("Prepare presentation for the hackathon", completed["reply"])
+        self.assertLess(len(completed["spoken_reply"]), len(completed["reply"]))
+        self.assertIn("verified", completed["spoken_reply"])
+
+        task_id = memory.save_task("Erase temporary demo cache")
+        confirmation = self.chat("MAVIS, delete erase temporary demo cache")
+        self.assertTrue(confirmation["confirmation_required"])
+        self.assertNotIn("spoken_reply", confirmation)
+        deleted = self.chat("Yes, delete it")
+        self.assertTrue(deleted["verified"])
+        self.assertIn("Erase temporary demo cache", deleted["reply"])
+        self.assertEqual(deleted["spoken_reply"], "Deleted and verified.")
+
+    def test_verified_memory_speech_keeps_full_written_fact(self):
+        requested = self.chat("MAVIS, remember that my secret demo word is pomegranate.")
+        self.assertTrue(requested["pending_approval"])
+        self.assertNotIn("spoken_reply", requested)
+        saved = self.chat("Yes please")
+        self.assertTrue(saved["verified"])
+        self.assertIn("pomegranate", saved["reply"])
+        self.assertEqual(saved["spoken_reply"], "Memory saved and verified.")
+
+        requested = self.chat("MAVIS, forget my secret demo word is pomegranate.")
+        self.assertTrue(requested["confirmation_required"])
+        forgotten = self.chat("Yes please")
+        self.assertTrue(forgotten["verified"])
+        self.assertEqual(forgotten["spoken_reply"], "Memory deleted and verified.")
+
     def test_two_memory_deletions_and_repeated_name(self):
         memory.save_memory("Sapphire demo phrase")
         memory.save_memory("Turquoise demo phrase")

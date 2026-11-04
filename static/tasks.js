@@ -43,7 +43,7 @@ async function speakResponse(text) {
     return;
   }
 
-  // Measure how long synthesis and audio startup take together.
+  // Measure time to speech and retain a length metric without logging content.
   const speechStartedAt = performance.now();
 
   // Remove Markdown formatting before speech synthesis.
@@ -53,6 +53,7 @@ async function speakResponse(text) {
     .replace(/\s+/g, " ")
     .trim();
 
+  console.info("MAVIS latency | speech length:", spokenText.length, "characters");
   const response = await fetch("/api/tts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -457,7 +458,7 @@ voiceStatus.textContent = result.display_reply || result.reply || "Voice command
 // Begin voice playback before waiting for the task and memory refreshes.
 const speechPromise =
   typeof result.reply === "string" && result.reply.trim()
-    ? speakResponse(result.reply).catch((speechError) => {
+    ? speakResponse(result.spoken_reply || result.reply).catch((speechError) => {
         console.error("MAVIS speech playback failed:", speechError);
       })
     : Promise.resolve();
@@ -758,7 +759,7 @@ document.querySelector("#chat-form").addEventListener("submit", async (event) =>
     addMavisChatMessage("assistant", response.display_reply || response.reply || "Your request was processed.");
     // Text replies start speech generation while UI data refreshes.
     const speechPromise = response.reply
-      ? speakResponse(response.reply).catch((error) => {
+      ? speakResponse(response.spoken_reply || response.reply).catch((error) => {
           console.warn("Voice playback failed:", error);
         })
       : Promise.resolve();

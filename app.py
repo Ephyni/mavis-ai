@@ -653,7 +653,8 @@ def chat(message_override=None):
                 ),
                 "intent": "delete_task",
                 "task_id": pending_task_id,
-                "verified": True
+                "verified": True,
+                "spoken_reply": "Deleted and verified."
             })
 
         return jsonify({
@@ -693,6 +694,7 @@ def chat(message_override=None):
                 "intent": "delete_memory",
                 "memory_id": pending_delete_memory,
                 "verified": True,
+                "spoken_reply": "Memory deleted and verified.",
             })
         if memory_answer in reject_delete or confirmation_answer(message) == "no":
             session.pop("pending_delete_memory_id", None)
@@ -866,6 +868,7 @@ def chat(message_override=None):
                 "intent": "save_memory",
                 "memory_id": memory_id,
                 "verified": True,
+                "spoken_reply": "Memory saved and verified.",
             })
 
         # Keep an unrecognized reply pending until yes, no, or a new action.
@@ -992,7 +995,8 @@ def chat(message_override=None):
 
         return jsonify({
             "reply": f"I've added '{title}' to your task list.",
-            "task_id": task_id
+            "task_id": task_id,
+            "spoken_reply": "Task added and verified.",
         })
 
     load_dotenv()
@@ -1277,7 +1281,8 @@ def chat(message_override=None):
         return jsonify({
             "reply": f"I've added '{title}' to your task list.",
             "task_id": task_id,
-            "intent": intent
+            "intent": intent,
+            "spoken_reply": "Task added and verified.",
        })
 
     if intent == "list_tasks":
@@ -1307,6 +1312,11 @@ def chat(message_override=None):
         ]
         return jsonify({
             "reply": "Here are your tasks in order: " + "; ".join(ordered_titles),
+            "spoken_reply": (
+                f"You have {len(saved_tasks)} "
+                f"{'task' if len(saved_tasks) == 1 else 'tasks'} "
+                "in this list. The full details are on screen."
+            ),
             "intent": intent,
             "tasks": saved_tasks
         })
@@ -1425,7 +1435,12 @@ def chat(message_override=None):
                 ),
                 "intent": intent,
                 "task_id": task_id,
-                "verification": result
+                "verification": result,
+                "spoken_reply": (
+                    "Done. That task is completed and verified."
+                    if result["status"] == "verified"
+                    else None
+                )
             }), 200 if result["status"] == "verified" else 500
 
         incomplete_tasks = [
