@@ -111,6 +111,26 @@ class ConsecutiveActionsTest(unittest.TestCase):
         self.assertTrue(self.chat("Yes")["verified"])
         self.assertEqual(len(memory.get_memories()), 1)
 
+    def test_delete_it_confirms_only_a_selected_task(self):
+        memory.save_task("Remove temporary cache")
+        request = self.chat("MAVIS, delete remove temporary cache.")
+        self.assertTrue(request["confirmation_required"])
+        self.assertTrue(self.chat("Delete it.")["verified"])
+        self.assertEqual(memory.get_tasks(), [])
+
+    def test_forget_it_cancels_approved_delete_request(self):
+        memory.save_task("Keep flight notes")
+        self.assertTrue(self.chat("MAVIS, delete keep flight notes.")["confirmation_required"])
+        self.assertTrue(self.chat("Forget it.")["cancelled"])
+        self.assertEqual(len(memory.get_tasks()), 1)
+
+    def test_save_it_does_not_approve_task_deletion(self):
+        memory.save_task("Retain test record")
+        self.assertTrue(self.chat("MAVIS, delete retain test record.")["confirmation_required"])
+        answer = self.chat("Save it.")
+        self.assertTrue(answer["confirmation_required"])
+        self.assertEqual(len(memory.get_tasks()), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,10 +42,10 @@ def confirmation_answer(message):
     answer = re.sub(r"^(?:hey\s+)?mavis\s+", "", answer)
     if answer in {
         "yes", "yes please", "yes do it", "yes go ahead", "yep", "yeah",
-        "yes save it", "yes please save it", "save it",
-        "yes delete it", "yes please delete it", "delete it",
-        "yes forget it", "yes please forget it", "forget it",
-        "confirm", "confirm delete", "confirm deletion", "confirm save",
+        "yes save it", "yes please save it",
+        "yes delete it", "yes please delete it",
+        "yes forget it", "yes please forget it",
+        "confirm",
         "sure", "go ahead", "absolutely",
     }:
         return "yes"
@@ -56,6 +56,7 @@ def confirmation_answer(message):
         "don't delete it", "do not delete it",
         "don't save it", "do not save it",
         "cancel", "cancel deletion", "stop", "never mind", "nevermind",
+        "forget it",
         "reject",
     }:
         return "no"

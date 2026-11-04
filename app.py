@@ -549,6 +549,21 @@ def chat(message_override=None):
             "set a reminder",
         ))
     )
+    # Answers like "Yes, delete it" belong to the existing confirmation.
+    # They must not be mistaken for new deletion commands.
+    awaiting = any(
+        key in session for key in (
+            "pending_delete_task_id", "pending_delete_memory_id",
+            "pending_memory_proposal_id", "pending_memory_selection",
+            "pending_task_selection",
+        )
+    )
+    bare_delete = message.strip().casefold().strip(" .!?") in {
+        "delete it", "mavis delete it", "mavis, delete it",
+    }
+    if awaiting and (confirmation_answer(message) is not None or bare_delete):
+        new_action = False
+
     if new_action:
         old_proposal = session.get("pending_memory_proposal_id")
         if type(old_proposal) is int:
@@ -569,7 +584,7 @@ def chat(message_override=None):
 
         confirm_answers = {
             "yes", "yes delete it", "yes, delete it",
-            "confirm deletion", "confirm delete",
+            "confirm deletion", "confirm delete", "delete it",
             "yes please delete it", "yes, please delete it"
         }
 
@@ -638,7 +653,7 @@ def chat(message_override=None):
     accept_delete = {
         "yes", "yes please", "yes, please", "yes delete it",
         "yes, delete it", "yes forget it", "yes, forget it",
-        "confirm", "confirm deletion", "delete it", "forget it",
+        "confirm", "confirm deletion", "delete it",
     }
     reject_delete = {
         "no", "no thanks", "no, thanks", "cancel", "never mind",
