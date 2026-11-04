@@ -40,6 +40,7 @@ from memory import (
 )
 
 from reminder_speech import format_spoken_reminder
+from memory_commands import extract_memory_fact, makes_unverified_memory_claim
 
 init_db()
 
@@ -701,12 +702,7 @@ def chat(message_override=None):
     # Handle explicit conversational memory requests before model intent routing.
     # Voice and text use this same handler and require approval before saving.
     memory_answer = message.strip().casefold().rstrip(".!?").strip()
-    remember_command = re.match(
-        r"^(?:(?:hey|hi)[,\s]+)?(?:mavis[,\s]+)?"
-        r"(?:please\s+)?remember\s+that\s+(?P<fact>.+)$",
-        message.strip(),
-        flags=re.IGNORECASE | re.DOTALL,
-    )
+    memory_fact = extract_memory_fact(message)
     pending_memory_id = session.get("pending_memory_proposal_id")
 
     if pending_memory_id is not None:
@@ -771,8 +767,8 @@ def chat(message_override=None):
                 "cancelled": rejected,
             })
 
-    if remember_command:
-        fact = remember_command.group("fact").strip()
+    if memory_fact is not None:
+        fact = memory_fact
         if not fact:
             return jsonify({
                 "reply": "What would you like me to remember?",
@@ -1311,6 +1307,9 @@ def chat(message_override=None):
             "Offer helpful next steps when relevant, without being pushy. "
             "Preserve important details, including task names, dates, and times. "
             "Never invent information or claim an action was successful without verification. "
+            "Do not say you saved, stored, or will remember a new fact unless "
+            "the memory approval workflow saved and verified it. "
+            "Facts shared in conversation alone are not new saved memories. "
             "Never claim to have created reminders, sent emails, updated calendars, "
             "or completed tasks unless those actions have actually been "
             "completed and verified."
@@ -1323,7 +1322,18 @@ def chat(message_override=None):
 
     )
 
-    return jsonify({"reply": response.output_text})
+    reply = response.output_text.strip()
+    if makes_unverified_memory_claim(reply):
+        # A model-only response is not evidence that any memory was saved.
+        return jsonify({
+            "reply": (
+                "I haven't saved that as a memory yet. If you'd like me to, "
+                "say 'MAVIS, remember that...' and I'll ask you to confirm."
+            ),
+            "intent": "chat",
+            "verified": False,
+        })
+    return jsonify({"reply": reply})
 
 
 
