@@ -53,6 +53,28 @@ class CommandRoutingTests(unittest.TestCase):
         self.assertIsNone(selected)
         self.assertEqual(len(matches), 2)
 
+    def test_distinguishing_task_words_are_mandatory(self):
+        tasks = [
+            {"id": 10, "title": "Review demo alpha", "completed": 0},
+            {"id": 11, "title": "Review demo beta", "completed": 0},
+        ]
+        selected, matches = helpers["_task_matches"](
+            "MAVIS complete review demo alpha", [tasks[1]]
+        )
+        self.assertIsNone(selected)
+        self.assertEqual(matches, [])
+        selected, matches = helpers["_task_matches"](
+            "MAVIS complete review demo", tasks
+        )
+        self.assertIsNone(selected)
+        self.assertEqual(len(matches), 2)
+        # A unique short name remains a supported natural-language request.
+        selected, matches = helpers["_task_matches"](
+            "MAVIS complete beta", tasks
+        )
+        self.assertEqual(selected["id"], 11)
+        self.assertEqual(len(matches), 1)
+
     def test_forgetting_phrases(self):
         for phrase in ("Mavis forget my next demo test word is sapphire",
                        "Can you forget my next demo test word is sapphire",

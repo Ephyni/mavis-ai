@@ -45,14 +45,19 @@ class ConsecutiveActionsTest(unittest.TestCase):
         return response.get_json()
 
     def test_two_completions_and_repeated_completion(self):
-        memory.save_task("Review demo alpha")
-        memory.save_task("Review demo beta")
+        alpha_id = memory.save_task("Review demo alpha")
+        beta_id = memory.save_task("Review demo beta")
         first = self.chat("MAVIS, complete review demo alpha.")
         self.assertEqual(first["verification"]["status"], "verified")
         repeated = self.chat("MAVIS, complete review demo alpha.")
         self.assertIn("already completed", repeated["reply"])
+        # Repeating the alpha request must not silently complete beta.
+        status = {task["id"]: task["completed"] for task in memory.get_tasks()}
+        self.assertEqual(status[alpha_id], 1)
+        self.assertEqual(status[beta_id], 0)
         second = self.chat("MAVIS, complete review demo beta.")
         self.assertEqual(second["verification"]["status"], "verified")
+        self.assertEqual(second["task_id"], beta_id)
 
     def test_consecutive_task_deletions_and_repeat(self):
         memory.save_task("Clear demo cache")
@@ -64,6 +69,19 @@ class ConsecutiveActionsTest(unittest.TestCase):
         self.assertTrue(self.chat("MAVIS, delete archive demo notes.")["confirmation_required"])
         self.assertTrue(self.chat("Yes")["verified"])
         self.assertEqual(memory.get_tasks(), [])
+
+    def test_repeated_deletion_never_targets_similarly_named_task(self):
+        alpha_id = memory.save_task("Archive demo alpha")
+        beta_id = memory.save_task("Archive demo beta")
+        self.assertTrue(self.chat("MAVIS, delete archive demo alpha.")["confirmation_required"])
+        deleted = self.chat("Yes, delete it")
+        self.assertTrue(deleted["verified"])
+        self.assertEqual(deleted["task_id"], alpha_id)
+        # A second alpha request must not queue beta for permanent deletion.
+        repeated = self.chat("MAVIS, delete archive demo alpha.")
+        self.assertIn("already deleted", repeated["reply"])
+        remaining = memory.get_tasks()
+        self.assertEqual([task["id"] for task in remaining], [beta_id])
 
     def test_two_memory_deletions_and_repeated_name(self):
         memory.save_memory("Sapphire demo phrase")

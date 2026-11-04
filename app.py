@@ -159,15 +159,14 @@ def _task_matches(message, available_tasks):
         exact.sort(key=lambda task: task["id"], reverse=True)
         return (exact[0] if len(exact) == 1 else None), exact
 
+    # Every requested keyword must occur in the saved title. Partial overlap
+    # can otherwise select a different task after the intended one is completed
+    # or deleted (for example, "review demo alpha" vs. "review demo beta").
     keywords = set(query)
     candidates = []
     for task in available_tasks:
         words = set(_task_words(task["title"])) - _TASK_TITLE_FILLERS
-        common = len(keywords & words)
-        if (len(keywords) == 1 and common == 1) or (
-            len(keywords) > 1 and common >= 2
-            and common / len(keywords) >= 0.65
-        ):
+        if keywords.issubset(words):
             candidates.append(task)
     candidates.sort(key=lambda task: task["id"], reverse=True)
     return (candidates[0] if len(candidates) == 1 else None), candidates
