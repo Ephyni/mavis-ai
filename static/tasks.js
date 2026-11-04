@@ -534,9 +534,7 @@ function renderHomeSummary() {
       node("strong", memoryDeleted
         ? "Deleted memory"
         : activityLabels[event.action] || "Task activity"),
-      node("span", memoryDeleted
-        ? "A saved memory was removed"
-        : event.title),
+      node("span", event.title),
     );
     recent.append(item);
   }

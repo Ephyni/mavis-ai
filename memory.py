@@ -249,7 +249,7 @@ def get_memories():
 
 
 def delete_memory(memory_id):
-    """Delete a saved memory and approved proposal copy, without logging its text."""
+    """Delete saved memory while retaining its exact text in activity history."""
     if type(memory_id) is not int or memory_id <= 0:
         return False
     connection = sqlite3.connect(DATABASE)
@@ -276,13 +276,14 @@ def delete_memory(memory_id):
             """,
             (stored[0], stored[1]),
         )
-        # Do not write forgotten content to history: only log the event.
+        # Retain the exact deleted text in history, as explicitly requested.
+        # The deletion and activity event commit together.
         connection.execute(
             """
             INSERT INTO task_activity (task_id, title, action, entity_type)
-            VALUES (?, 'A saved memory was removed', 'deleted', 'memory')
+            VALUES (?, ?, 'deleted', 'memory')
             """,
-            (memory_id,),
+            (memory_id, stored[0]),
         )
         connection.commit()
         return True
