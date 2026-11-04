@@ -1654,4 +1654,9 @@ def text_to_speech():
     )
 
 if __name__ == "__main__":
+    # Warm Kokoro before serving requests so the first voice response uses
+    # the same cached model instance as subsequent responses.
+    from tts_service import preload_tts_model
+
+    preload_tts_model()
     app.run(host="0.0.0.0", port=5000)

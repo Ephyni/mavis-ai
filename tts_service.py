@@ -29,6 +29,28 @@ def get_tts_model():
 
 
 
+def preload_tts_model():
+    """Warm Kokoro once at startup without disabling other app features on failure."""
+    started = time.perf_counter()
+    try:
+        get_tts_model()
+    except Exception as error:
+        # Keep task, memory, and chat endpoints available if speech cannot load.
+        print(
+            f"MAVIS TTS preload unavailable ({type(error).__name__}); "
+            "speech will retry when requested.",
+            flush=True,
+        )
+        return False
+
+    print(
+        f"MAVIS latency | Kokoro preload ready: "
+        f"{(time.perf_counter() - started) * 1000:.0f} ms",
+        flush=True,
+    )
+    return True
+
+
 def generate_speech(text):
     """Generate natural, conversational speech for MAVIS."""
     if not isinstance(text, str) or not text.strip():
