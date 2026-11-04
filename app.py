@@ -109,74 +109,94 @@ def _task_words(text):
 
 
 def _task_matches(message, available_tasks):
-    """Select an unambiguous task or report all plausible candidates."""
-    normalized = " ".join(_task_words(message))
-    task_number = re.search(
-        r"\btask\s*(?:number\s*|id\s*|#\s*)?(\d+)\b",
-        message,
-        flags=re.IGNORECASE,
-    )
-    if task_number:
-        selected = next(
-            (
-                task for task in available_tasks
-                if task["id"] == int(task_number.group(1))
-            ),
-            None,
-        )
-        return selected, [selected] if selected else []
+    """Choose a uniquely named task; return candidates when uncertain."""
+    number = re.search(r"\btask\s*(?:number\s*|id\s*|#\s*)?(\d+)\b", message, re.I)
+    if number:
+        found = next((task for task in available_tasks
+                      if task["id"] == int(number.group(1))), None)
+        return found, [found] if found else []
 
-    query_words = set(_task_words(message)) - _TASK_COMMAND_WORDS
-    if not query_words:
+    query = [word for word in _task_words(message)
+             if word not in _TASK_COMMAND_WORDS]
+    if not query:
         return None, []
 
+    # Matching an exact name outranks every overlapping, longer name.
+    exact = [task for task in available_tasks
+             if [word for word in _task_words(task["title"])
+                 if word not in _TASK_TITLE_FILLERS] == query]
+    if exact:
+        exact.sort(key=lambda task: task["id"], reverse=True)
+        return (exact[0] if len(exact) == 1 else None), exact
+
+    keywords = set(query)
     candidates = []
     for task in available_tasks:
-        title = " ".join(_task_words(task["title"]))
-        title_words = set(_task_words(task["title"])) - _TASK_TITLE_FILLERS
-        shared = title_words & query_words
-        if not title_words:
-            continue
-        full_title = bool(
-            re.search(r"(?<!\w)" + re.escape(title) + r"(?!\w)", normalized)
-        )
-        partial = (
-            len(shared) >= min(2, len(query_words))
-            and len(shared) / len(title_words) >= 0.5
-        )
-        if full_title or partial:
-            candidates.append((task, full_title, len(title_words)))
+        words = set(_task_words(task["title"])) - _TASK_TITLE_FILLERS
+        common = len(keywords & words)
+        if (len(keywords) == 1 and common == 1) or (
+            len(keywords) > 1 and common >= 2
+            and common / len(keywords) >= 0.65
+        ):
+            candidates.append(task)
+    candidates.sort(key=lambda task: task["id"], reverse=True)
+    return (candidates[0] if len(candidates) == 1 else None), candidates
 
-    if len(candidates) == 1:
-        return candidates[0][0], [candidates[0][0]]
 
-    # A fully named longer task overrides a shorter embedded title only
-    # when the user has actually spoken the longer title.
-    fully_named = [item for item in candidates if item[1]]
-    if len(fully_named) > 1:
-        fully_named.sort(key=lambda item: item[2], reverse=True)
-        if fully_named[0][2] > fully_named[1][2]:
-            return fully_named[0][0], [item[0] for item in candidates]
-
-    if len(fully_named) == 1 and len(candidates) > 1:
-        return fully_named[0][0], [item[0] for item in candidates]
-
-    return None, [item[0] for item in candidates]
+def _task_choice_from_reply(message, options):
+    """Use a spoken position or creation order only for pending choices."""
+    if len(options) < 2:
+        return None
+    words = _task_words(message)
+    words = [word for word in words if word not in {
+        "the", "one", "task", "mavis", "please", "i", "mean",
+        "meant", "choose", "select", "option",
+    }]
+    phrase = " ".join(words)
+    ordinals = {
+        "first": 0, "1st": 0, "second": 1, "2nd": 1,
+        "third": 2, "3rd": 2, "fourth": 3, "4th": 3,
+        "number one": 0, "number two": 1, "number three": 2,
+        "number four": 3,
+    }
+    if phrase in ordinals:
+        index = ordinals[phrase]
+        return options[index] if index < len(options) else None
+    duplicate_names = len({
+        tuple(_task_words(task["title"])) for task in options
+    }) == 1
+    if duplicate_names and phrase in {"newer", "newest", "latest"}:
+        return max(options, key=lambda task: task["id"])
+    if duplicate_names and phrase in {"older", "oldest"}:
+        return min(options, key=lambda task: task["id"])
+    return None
 
 
 def _task_selection_reply(action, matches):
-    if matches:
-        choices = ", ".join(
-            f"{task['title']} (task {task['id']})" for task in matches[:4]
-        )
-        return (
-            f"I found multiple possible tasks: {choices}. "
-            "Please say the exact title or task number."
-        )
-    return (
-        f"Which task would you like me to {action}? "
-        "Please say its title or task number."
-    )
+    """Ask for a task name, not an internal SQLite identifier."""
+    if not matches:
+        return f"Which task would you like me to {action}? Please say its name."
+    names = {}
+    for task in matches:
+        key = tuple(_task_words(task["title"]))
+        names.setdefault(key, []).append(task)
+    if len(names) == 1:
+        group = next(iter(names.values()))
+        title = group[0]["title"]
+        if len(group) == 2:
+            return (f"I found two tasks named '{title}'. "
+                    "Would you like the newer one or the older one?")
+        return (f"I found {len(group)} tasks named '{title}'. "
+                "Please say newest, oldest, or the first, second, third "
+                "or fourth one, counting from newest to oldest.")
+    choices = [
+        f"'{group[0]['title']}'" +
+        (f" ({len(group)} copies)" if len(group) > 1 else "")
+        for group in list(names.values())[:4]
+    ]
+    return ("I found several possible tasks: " + ", or ".join(choices) +
+            ". Which task name did you mean? You can say just its name.")
+
 
 @app.patch("/api/tasks/<int:task_id>")
 def update_task(task_id):
@@ -572,7 +592,9 @@ def chat(message_override=None):
     # Remember requests that need a task name. A subsequent title or task
     # number can resolve the action without requiring the verb again.
     pending_selection = session.pop("pending_task_selection", None)
+    option_ids = session.pop("pending_task_options", [])
     follow_up_task_intent = None
+    follow_up_task_id = None
     if pending_selection in {"complete_task", "delete_task"}:
         answer = message.strip().casefold().rstrip(".!?").strip()
         if answer in {"no", "cancel", "never mind", "nevermind", "stop"}:
@@ -590,6 +612,20 @@ def chat(message_override=None):
         )
         if new_command is None and unrelated is None:
             follow_up_task_intent = pending_selection
+            current = get_saved_tasks()
+            if pending_selection == "complete_task":
+                current = [task for task in current if task["completed"] == 0]
+            options = [
+                next((task for task in current if task["id"] == item), None)
+                for item in option_ids[:4]
+            ]
+            options = [task for task in options if task is not None]
+            chosen = _task_choice_from_reply(message, options)
+            if chosen is None and options:
+                # Re-match names against ONLY the offered candidates.
+                chosen, _ = _task_matches(message, options)
+            if chosen is not None:
+                follow_up_task_id = chosen["id"]
 
     if message.lower().startswith("add task:"):
         title = message.split(":", 1)[1].strip()
@@ -927,9 +963,16 @@ def chat(message_override=None):
 
     if intent == "delete_task":
         # Never request deletion confirmation unless the target is unique.
-        selected_task, matches = _task_matches(message, get_saved_tasks())
+        saved_tasks = get_saved_tasks()
+        if follow_up_task_id is not None and follow_up_task_intent == "delete_task":
+            selected_task = next((task for task in saved_tasks
+                                  if task["id"] == follow_up_task_id), None)
+            matches = [selected_task] if selected_task else []
+        else:
+            selected_task, matches = _task_matches(message, saved_tasks)
         if selected_task is None:
             session["pending_task_selection"] = "delete_task"
+            session["pending_task_options"] = [task["id"] for task in matches[:4]]
             return jsonify({
                 "reply": _task_selection_reply("delete", matches),
                 "intent": intent,
@@ -959,9 +1002,15 @@ def chat(message_override=None):
         ]
         task_id = data.get("task_id")
         if task_id is None:
-            selected, matches = _task_matches(message, incomplete_tasks)
+            if follow_up_task_id is not None and follow_up_task_intent == "complete_task":
+                selected = next((task for task in incomplete_tasks
+                                 if task["id"] == follow_up_task_id), None)
+                matches = [selected] if selected else []
+            else:
+                selected, matches = _task_matches(message, incomplete_tasks)
             if selected is None:
                 session["pending_task_selection"] = "complete_task"
+                session["pending_task_options"] = [task["id"] for task in matches[:4]]
                 return jsonify({
                     "reply": _task_selection_reply("complete", matches),
                     "intent": intent,
