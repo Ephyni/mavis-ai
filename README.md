@@ -109,11 +109,11 @@ These instructions describe how to run the hackathon implementation locally or t
 ### Step 1 — Clone the Repository
 
 ```bash
-git clone --branch codex/task-dashboard --single-branch https://github.com/Ephyni/mavis-ai.git
+git clone https://github.com/Ephyni/mavis-ai.git
 cd mavis-ai
 ```
 
-This checks out the branch containing MAVIS's current hackathon implementation.
+This checks out `main`, which contains MAVIS's current hackathon implementation.
 
 ### Step 2 — Create a Virtual Environment
 
@@ -449,6 +449,8 @@ node --check static/tasks.js
 **Validation checkpoint:** All **43 automated tests passed** in GitHub Codespaces on November 4, 2026. These include tests for safe task selection, confirmed task and memory deletion, pending-command replacement, Kokoro speech caching, and voice configuration.
 
 MAVIS has also undergone manual end-to-end testing of task actions, persistent memory, voice interactions, reminder scheduling, spoken notifications, and SQLite acknowledgment. The working voice interface was tested for creating a task immediately after an unfinished deletion request.
+
+**Clean-install check — November 4, 2026:** A fresh Python 3.12 environment on Windows passed all 43 automated tests after adding the timezone-data dependency and closing the test database connection explicitly. Application startup, task and memory persistence across a server restart, verified task completion, reminder storage, and real Kokoro speech generation were checked. FFmpeg and the model files were supplied as listed in the prerequisites. Live Muse API requests and browser microphone capture were not tested in this clean-install check; those require a valid Meta API key and a browser session.
 
 ## 11. Timezone Handling
 
